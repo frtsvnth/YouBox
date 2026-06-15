@@ -58,7 +58,7 @@ export function JobList({ refreshKey = 0, onJobClick, onJobRetry, onJobReRun, on
     } catch { /* silent */ }
   }
 
-  const activeJobs = jobs.filter(j => ['created', 'extracting', 'queued', 'downloading', 'muxing'].includes(j.status))
+  const activeJobs = jobs.filter(j => ['created', 'extracting', 'queued', 'downloading', 'muxing', 'failed'].includes(j.status))
   const recentReady = jobs.filter(j => j.status === 'ready').slice(0, 3)
 
   if (error) {

@@ -54,10 +54,10 @@ RUN mkdir -p /data/db /data/downloads /data/tmp && \
 
 USER youbox
 
-EXPOSE 3000
+EXPOSE 3007
 
 ENV NODE_ENV=production
-ENV PORT=3000
+ENV PORT=3007
 ENV DATA_DIR=/data
 ENV NEXT_TELEMETRY_DISABLED=1
 

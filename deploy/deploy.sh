@@ -55,7 +55,7 @@ case "${1:-deploy}" in
 
     echo "[deploy] Checking health..."
     sleep 5
-    HEALTH=$(docker compose -f "$COMPOSE_FILE" exec -T youbox wget -q -O - http://localhost:3000/api/health 2>/dev/null || echo '{"status":"unknown"}')
+    HEALTH=$(docker compose -f "$COMPOSE_FILE" exec -T youbox wget -q -O - http://localhost:3007/api/health 2>/dev/null || echo '{"status":"unknown"}')
     echo "[deploy] Health: $(echo $HEALTH | python3 -c 'import sys,json; print(json.load(sys.stdin).get("status","unknown"))' 2>/dev/null || echo 'unknown')"
     echo "[deploy] Done! YouBox is running."
     docker compose -f "$COMPOSE_FILE" ps
@@ -96,7 +96,7 @@ case "${1:-deploy}" in
     docker compose -f "$COMPOSE_FILE" build
     docker compose -f "$COMPOSE_FILE" up -d --force-recreate
 
-    echo "[deploy] Rollback complete. Verify with: docker compose ps && curl -s http://localhost:3000/api/health"
+    echo "[deploy] Rollback complete. Verify with: docker compose ps && curl -s http://localhost:3007/api/health"
     ;;
 
   *)

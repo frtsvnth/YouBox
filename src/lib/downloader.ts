@@ -180,14 +180,17 @@ export async function downloadFile(options: DownloadOptions): Promise<DownloadRe
   const outputTemplate = path.join(tmpDir, '%(title).100s_%(id)s.%(ext)s')
   const args: string[] = []
 
-  args.push('--print', 'filename')
-  args.push('--print', 'title')
   args.push('--no-warnings')
   args.push(...playlistLimitArgs(mode))
   args.push(...cookiesArgs())
 
   if (formatId) {
-    args.push('-f', `${formatId}+bestaudio/best`)
+    args.push('-f', formatId)
+    if (format === 'mp3') {
+      args.push('-x', '--audio-format', 'mp3')
+    } else {
+      args.push('--merge-output-format', format === 'webm' ? 'webm' : 'mp4')
+    }
   } else {
     args.push(...formatArgs(format))
   }
@@ -215,18 +218,8 @@ export async function downloadFile(options: DownloadOptions): Promise<DownloadRe
     throw new YtDlpError(result.stderr, mapYtDlpError(result.stderr), result.stderr)
   }
 
-  const lines = result.stdout.trim().split('\n').filter(Boolean)
-
-  const outputFilename = lines[0] ?? ''
-  const title = lines[1] ?? 'Unknown'
-
-  if (!outputFilename) {
-    throw new YtDlpError('No output filename from yt-dlp', 'Не удалось определить имя файла')
-  }
-
-  const sourcePath = path.join(tmpDir, path.basename(outputFilename))
-
-  if (!fs.existsSync(sourcePath)) {
+  const downloadPath = parseDownloadPath(result.stderr, tmpDir)
+  if (!downloadPath) {
     const files = fs.readdirSync(tmpDir).filter((f) => f !== '.' && f !== '..')
     if (files.length > 0) {
       const fullPath = path.join(tmpDir, files[0])
@@ -243,7 +236,7 @@ export async function downloadFile(options: DownloadOptions): Promise<DownloadRe
       return {
         outputPath: path.join(env.DOWNLOADS_DIR(), destName),
         filename: destName,
-        title,
+        title: path.basename(fullPath, path.extname(fullPath)),
         playlistIndex,
         playlistSize,
       }
@@ -251,7 +244,32 @@ export async function downloadFile(options: DownloadOptions): Promise<DownloadRe
     throw new YtDlpError('Output file not found after download', 'Файл не найден после скачивания')
   }
 
-  const destName = moveToDownloads(jobId, sourcePath, env.DOWNLOADS_DIR())
+  if (!fs.existsSync(downloadPath)) {
+    const files = fs.readdirSync(tmpDir).filter((f) => f !== '.' && f !== '..')
+    if (files.length > 0) {
+      const fullPath = path.join(tmpDir, files[0])
+      const destName = moveToDownloads(jobId, fullPath, env.DOWNLOADS_DIR())
+      cleanupJobFiles(jobId)
+
+      let playlistIndex: number | null = null
+      let playlistSize: number | null = null
+      if (mode === 'playlist') {
+        playlistIndex = 1
+        playlistSize = env.PLAYLIST_MAX_ITEMS
+      }
+
+      return {
+        outputPath: path.join(env.DOWNLOADS_DIR(), destName),
+        filename: destName,
+        title: path.basename(fullPath, path.extname(fullPath)),
+        playlistIndex,
+        playlistSize,
+      }
+    }
+    throw new YtDlpError('Output file not found after download', 'Файл не найден после скачивания')
+  }
+
+  const destName = moveToDownloads(jobId, downloadPath, env.DOWNLOADS_DIR())
   cleanupJobFiles(jobId)
 
   let playlistIndex: number | null = null
@@ -264,7 +282,7 @@ export async function downloadFile(options: DownloadOptions): Promise<DownloadRe
   return {
     outputPath: path.join(env.DOWNLOADS_DIR(), destName),
     filename: destName,
-    title,
+    title: path.basename(downloadPath, path.extname(downloadPath)),
     playlistIndex,
     playlistSize,
   }
@@ -288,4 +306,31 @@ export function cleanupJobFiles(jobId: string): void {
   } catch {
     /* ignore */
   }
+}
+
+const DEST_RE = /\[download\] Destination:\s+(.+)/i
+const MERGE_RE = /\[Merger\] Merging formats into\s+"([^"]+)"/i
+
+function parseDownloadPath(stderr: string, tmpDir: string): string | null {
+  const mergeMatch = stderr.match(MERGE_RE)
+  if (mergeMatch) return mergeMatch[1]
+
+  let lastDest: string | null = null
+  let match: RegExpExecArray | null
+  const re = new RegExp(DEST_RE.source, 'gi')
+  while ((match = re.exec(stderr)) !== null) {
+    lastDest = match[1]
+  }
+  if (lastDest && !lastDest.includes('.f')) return lastDest
+
+  if (lastDest) {
+    const basePath = lastDest.replace(/\.f\d+\b/, '')
+    const ext = path.extname(basePath)
+    const base = basePath.slice(0, -ext.length)
+    for (const candidate of [basePath, `${base}.mp4`, `${base}.webm`, `${base}.mkv`]) {
+      if (fs.existsSync(candidate)) return candidate
+    }
+  }
+
+  return null
 }

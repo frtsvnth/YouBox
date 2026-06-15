@@ -69,7 +69,7 @@ echo -n "твой-секретный-пин-код" | shasum -a 256 | cut -d' ' 
 
 # 5. Проверка
 docker compose ps
-curl -s http://localhost:3000/api/health | python3 -m json.tool
+curl -s http://localhost:3007/api/health | python3 -m json.tool
 ```
 
 ### Приватный репозиторий (SSH deploy key)
@@ -165,7 +165,7 @@ docker compose up -d
 
 ```caddyfile
 youbox.example.com {
-    reverse_proxy 127.0.0.1:3000 {
+    reverse_proxy 127.0.0.1:3007 {
         header_up X-Forwarded-For {remote_host}
         header_up X-Forwarded-Proto {scheme}
     }
@@ -188,7 +188,7 @@ server {
     ssl_certificate_key /etc/letsencrypt/live/youbox.example.com/privkey.pem;
 
     location / {
-        proxy_pass http://127.0.0.1:3000;
+        proxy_pass http://127.0.0.1:3007;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -256,7 +256,7 @@ bantime = 3600
 - `cap_drop: ALL` — удаление всех capabilities
 - `read_only: true` — корневая ФС только для чтения
 - `tmpfs: /tmp` — временные файлы в памяти
-- `ports: 127.0.0.1:3000:3000` — сервис не торчит наружу
+- `ports: 127.0.0.1:3007:3007` — сервис не торчит наружу
 
 ### 5. IP Allowlist (Caddy)
 
@@ -270,7 +270,7 @@ youbox.example.com {
     }
     respond @blocked "Access Denied" 403
 
-    reverse_proxy youbox:3000
+    reverse_proxy youbox:3007
 }
 ```
 
@@ -452,7 +452,7 @@ docker system prune -f
 ### Healthcheck показывает degraded
 
 ```bash
-curl -s http://localhost:3000/api/health | python3 -m json.tool
+curl -s http://localhost:3007/api/health | python3 -m json.tool
 # Проверьте cookiesFile.available, ytDlp.available, ffmpeg.available
 ```
 

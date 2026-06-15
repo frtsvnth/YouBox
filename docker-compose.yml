@@ -11,7 +11,7 @@ services:
     restart: unless-stopped
 
     ports:
-      - "127.0.0.1:${PORT:-3000}:3000"
+      - "127.0.0.1:${PORT:-3007}:3007"
 
     environment:
       - APP_PIN_HASH=${APP_PIN_HASH:?Обязательно: SHA-256 хеш от PIN}

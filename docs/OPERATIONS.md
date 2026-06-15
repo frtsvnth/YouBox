@@ -32,10 +32,10 @@ healthcheck:
 docker inspect --format='{{json .State.Health}}' youbox | python3 -m json.tool
 
 # Через API
-curl -s http://localhost:3000/api/health | python3 -m json.tool
+curl -s http://localhost:3007/api/health | python3 -m json.tool
 
 # Быстрая проверка
-curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/api/health
+curl -s -o /dev/null -w "%{http_code}" http://localhost:3007/api/health
 ```
 
 ### Когда статус degraded

@@ -2,7 +2,7 @@
 # Docker HEALTHCHECK — проверяет HTTP-доступность и статус приложения
 # Exit 0 = ok, 1 = degraded, 2 = error (перезапуск контейнера)
 
-RESPONSE=$(wget -q -O - http://localhost:3000/api/health 2>/dev/null || curl -sf http://localhost:3000/api/health 2>/dev/null)
+RESPONSE=$(wget -q -O - http://localhost:3007/api/health 2>/dev/null || curl -sf http://localhost:3007/api/health 2>/dev/null)
 
 if [ -z "$RESPONSE" ]; then
   exit 2

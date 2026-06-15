@@ -6,7 +6,7 @@
 
 ```
 ┌──────────────┐     ┌──────────────────────────────────────────────┐     ┌──────────────┐
-│   Браузер    │────▶│          Next.js App (port 3000)              │────▶│   SQLite     │
+│   Браузер    │────▶│          Next.js App (port 3007)              │────▶│   SQLite     │
 │  (Frontend)  │     │                                                │     │  (youbox.db) │
 └──────────────┘     │  ┌──────────┐  ┌───────────────────────────┐  │     └──────────────┘
                       │  │ Auth     │  │  API Routes              │  │
@@ -298,7 +298,7 @@ YT_COOKIES_FILE=             # Путь к cookies.txt
 PLAYLIST_MAX_ITEMS=10        # Максимум элементов плейлиста
 
 # Сервер
-PORT=3000
+PORT=3007
 
 # Логирование
 LOG_LEVEL=info               # debug | info | warn | error
@@ -390,7 +390,7 @@ services:
   youbox:
     build: .
     ports:
-      - "${PORT:-3000}:3000"
+      - "${PORT:-3007}:3007"
     environment:
       - APP_PIN_HASH=${APP_PIN_HASH}
       - DATA_DIR=/data

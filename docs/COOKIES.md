@@ -98,7 +98,7 @@ volumes:
 docker exec youbox ls -la /cookies/cookies.txt
 
 # Проверка через health endpoint
-curl -s http://localhost:3000/api/health | python3 -m json.tool
+curl -s http://localhost:3007/api/health | python3 -m json.tool
 # Ищем: "cookiesFile": { "available": true, "path": null }
 ```
 
