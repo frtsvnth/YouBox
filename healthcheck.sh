@@ -1,8 +1,6 @@
 #!/bin/sh
 # Docker HEALTHCHECK — проверяет HTTP-доступность и статус приложения
-# Возвращает 0 если всё ок, 1 если degraded, 2 если error
-
-set -e
+# Exit 0 = ok, 1 = degraded, 2 = error (перезапуск контейнера)
 
 RESPONSE=$(wget -q -O - http://localhost:3000/api/health 2>/dev/null || curl -sf http://localhost:3000/api/health 2>/dev/null)
 
@@ -10,16 +8,11 @@ if [ -z "$RESPONSE" ]; then
   exit 2
 fi
 
-STATUS=$(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('status','error'))" 2>/dev/null)
+# Парсинг JSON через grep — без зависимостей (не нужен python3)
+STATUS=$(echo "$RESPONSE" | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
 
 case "$STATUS" in
-  ok)
-    exit 0
-    ;;
-  degraded)
-    exit 1
-    ;;
-  *)
-    exit 2
-    ;;
+  ok)       exit 0 ;;
+  degraded) exit 1 ;;
+  *)        exit 2 ;;
 esac

@@ -83,20 +83,20 @@ case "${1:-deploy}" in
     ;;
 
   --rollback)
-    echo "[deploy] Rolling back to previous version..."
+    echo "[deploy] Rolling back..."
 
-    # Откат к предыдущему образу Docker
-    PREVIOUS=$(docker images --format '{{.Repository}}:{{.Tag}}' | grep "^${PROJECT}:" | sort -V | tail -2 | head -1)
-
-    if [ -z "$PREVIOUS" ]; then
-      echo "[deploy] No previous image found. Rebuilding..."
-      docker compose -f "$COMPOSE_FILE" build
-    else
-      echo "[deploy] Rolling back to: $PREVIOUS"
-      docker compose -f "$COMPOSE_FILE" up -d --force-recreate
+    # Пробуем откатить код через git (если доступно)
+    if [ -d .git ]; then
+      echo "[deploy] Restoring previous git state..."
+      git stash 2>/dev/null || true
+      git checkout HEAD~1 2>/dev/null || echo "[deploy] WARNING: git checkout failed, rebuilding current code..."
     fi
 
-    echo "[deploy] Rollback complete."
+    # Пересборка и перезапуск
+    docker compose -f "$COMPOSE_FILE" build
+    docker compose -f "$COMPOSE_FILE" up -d --force-recreate
+
+    echo "[deploy] Rollback complete. Verify with: docker compose ps && curl -s http://localhost:3000/api/health"
     ;;
 
   *)

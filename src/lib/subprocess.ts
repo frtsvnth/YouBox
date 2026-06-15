@@ -1,5 +1,12 @@
 import { spawn } from 'node:child_process'
 
+const MINIMAL_ENV: Record<string, string | undefined> = {
+  PATH: process.env.PATH,
+  HOME: process.env.HOME,
+  NODE_ENV: process.env.NODE_ENV,
+  LOG_LEVEL: process.env.LOG_LEVEL,
+}
+
 export interface SubprocessResult {
   stdout: string
   stderr: string
@@ -35,7 +42,7 @@ export async function runSubprocess(options: SubprocessOptions): Promise<Subproc
     const proc = spawn(bin, args, {
       stdio: ['ignore', 'pipe', 'pipe'],
       timeout,
-      env: { ...process.env, ...extraEnv },
+      env: { ...MINIMAL_ENV, ...extraEnv } as NodeJS.ProcessEnv,
       shell: false,
     })
 

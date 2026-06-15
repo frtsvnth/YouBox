@@ -31,13 +31,12 @@ export async function getHealth(): Promise<HealthStatus> {
     dbAvailable = false
   }
 
-  const cookiesFile = env.YT_COOKIES_FILE
-    ? { available: fs.existsSync(env.YT_COOKIES_FILE), path: env.YT_COOKIES_FILE }
-    : { available: false, path: null }
+  const cookiesConfigured = env.YT_COOKIES_FILE !== null
+  const cookiesAvailable = cookiesConfigured && fs.existsSync(env.YT_COOKIES_FILE!)
+  const cookiesFile = { available: cookiesAvailable, path: null }
 
   const allOk = ytDlp.available && ffmpeg.available && dbAvailable
-  const cookiesConfigured = env.YT_COOKIES_FILE !== null
-  const cookiesMissing = cookiesConfigured && !cookiesFile.available
+  const cookiesMissing = cookiesConfigured && !cookiesAvailable
   const criticalFail = !dbAvailable
 
   return {

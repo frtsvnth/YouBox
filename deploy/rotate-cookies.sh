@@ -22,21 +22,32 @@ if [ $# -lt 1 ]; then
   echo "Usage: $0 /path/to/new/cookies.txt"
   echo ""
   echo "Пример:"
-  echo "  $0 ~/new_cookies.txt"
+  echo "  $0 /tmp/fresh_cookies.txt"
   exit 1
 fi
 
 NEW_COOKIES="$1"
-COMPOSE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-ENV_FILE="${COMPOSE_DIR}/.env"
 
 if [ ! -f "$NEW_COOKIES" ]; then
   echo "[rotate-cookies] ERROR: File not found: $NEW_COOKIES"
   exit 1
 fi
 
+# Проверка что это похоже на cookies файл (содержит домен или название)
+if ! head -1 "$NEW_COOKIES" | grep -qi "cookies\|\.youtube\.com\|\.google\.com" 2>/dev/null; then
+  echo "[rotate-cookies] WARNING: The file does not look like a cookies.txt file."
+  echo "[rotate-cookies] First line: $(head -1 "$NEW_COOKIES")"
+  echo "[rotate-cookies] Continue? (y/N): "
+  read -r CONFIRM
+  if [ "$CONFIRM" != "y" ] && [ "$CONFIRM" != "Y" ]; then
+    echo "[rotate-cookies] Aborted."
+    exit 1
+  fi
+fi
+
 # Читаем текущий путь к cookies из .env
 CURRENT_COOKIES=""
+ENV_FILE="${COMPOSE_DIR:-$(dirname "$0")/..}/.env"
 if [ -f "$ENV_FILE" ]; then
   CURRENT_COOKIES=$(grep -E '^YT_COOKIES_FILE=' "$ENV_FILE" | cut -d'=' -f2- | tr -d '"' || true)
 fi

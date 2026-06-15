@@ -8,18 +8,8 @@ const publicPaths = [
   '/login',
 ]
 
-function getClientIp(request: NextRequest): string {
-  const forwarded = request.headers.get('x-forwarded-for')
-  if (forwarded) {
-    return forwarded.split(',')[0].trim()
-  }
-  return request.headers.get('x-real-ip') ?? '127.0.0.1'
-}
-
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
-
-  request.headers.set('x-real-ip', getClientIp(request))
 
   if (
     publicPaths.some((p) => pathname === p) ||

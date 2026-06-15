@@ -9,7 +9,8 @@
 
 set -euo pipefail
 
-COMPOSE_FILE="${SCRIPT_DIR:-$(dirname "$0")/..}/docker-compose.yml"
+SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+COMPOSE_FILE="${SCRIPT_DIR}/docker-compose.yml"
 PROJECT_NAME="youbox"
 
 echo "[update-yt-dlp] Updating yt-dlp..."
