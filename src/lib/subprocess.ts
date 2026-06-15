@@ -1,0 +1,79 @@
+import { spawn } from 'node:child_process'
+
+export interface SubprocessResult {
+  stdout: string
+  stderr: string
+  exitCode: number | null
+}
+
+export interface SubprocessOptions {
+  bin: string
+  args: string[]
+  timeout?: number
+  env?: Record<string, string | undefined>
+  sensitiveArgIndices?: number[]
+}
+
+export async function runSubprocess(options: SubprocessOptions): Promise<SubprocessResult> {
+  const {
+    bin,
+    args,
+    timeout = 30000,
+    env: extraEnv,
+    sensitiveArgIndices = [],
+  } = options
+
+  const safeArgs = args.map((arg, i) =>
+    sensitiveArgIndices.includes(i) ? '<redacted>' : arg,
+  )
+
+  if (process.env.LOG_LEVEL === 'debug') {
+    console.debug(`[subprocess] ${bin} ${safeArgs.join(' ')}`)
+  }
+
+  return new Promise((resolve, reject) => {
+    const proc = spawn(bin, args, {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      timeout,
+      env: { ...process.env, ...extraEnv },
+      shell: false,
+    })
+
+    let stdout = ''
+    let stderr = ''
+
+    proc.stdout.on('data', (chunk: Buffer) => {
+      stdout += chunk.toString()
+    })
+
+    proc.stderr.on('data', (chunk: Buffer) => {
+      stderr += chunk.toString()
+    })
+
+    proc.on('error', (err) => {
+      if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+        reject(new Error(`binary not found: ${bin}`))
+      } else {
+        reject(new Error(`failed to spawn ${bin}: ${err.message}`))
+      }
+    })
+
+    proc.on('close', (exitCode) => {
+      resolve({ stdout, stderr, exitCode })
+    })
+  })
+}
+
+export function buildArgs(base: string[], extra: Record<string, string | boolean | undefined>): string[] {
+  const args: string[] = [...base]
+  for (const [key, value] of Object.entries(extra)) {
+    if (value === undefined || value === false) continue
+    const prefix = key.length === 1 ? '-' : '--'
+    if (value === true) {
+      args.push(`${prefix}${key}`)
+    } else {
+      args.push(`${prefix}${key}`, String(value))
+    }
+  }
+  return args
+}

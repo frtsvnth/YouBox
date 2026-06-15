@@ -1,26 +1,142 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --color-page: #fafafa;
+  --color-page-alt: #f4f4f5;
+  --color-card: #ffffff;
+  --color-card-hover: #fafafa;
+  --color-elevated: #ffffff;
+  --color-input: #ffffff;
+  --color-border: #e4e4e7;
+  --color-border-subtle: #e4e4e780;
+  --color-divider: #f4f4f5;
+
+  --color-text-primary: #18181b;
+  --color-text-secondary: #71717a;
+  --color-text-tertiary: #a1a1aa;
+  --color-text-inverse: #fafafa;
+
+  --color-accent: #10b981;
+  --color-accent-hover: #059669;
+  --color-accent-subtle: #10b98115;
+  --color-accent-ring: #10b98140;
+
+  --color-success: #10b981;
+  --color-success-subtle: #10b98115;
+  --color-warning: #f59e0b;
+  --color-warning-subtle: #f59e0b15;
+  --color-error: #ef4444;
+  --color-error-subtle: #ef444415;
+  --color-info: #3b82f6;
+  --color-info-subtle: #3b82f615;
+
+  --color-skeleton: #e4e4e7;
+  --color-overlay: #18181b80;
+}
+
+.dark {
+  --color-page: #09090b;
+  --color-page-alt: #18181b;
+  --color-card: #18181b;
+  --color-card-hover: #27272a;
+  --color-elevated: #27272a;
+  --color-input: #18181b;
+  --color-border: #27272a;
+  --color-border-subtle: #27272a80;
+  --color-divider: #27272a;
+
+  --color-text-primary: #fafafa;
+  --color-text-secondary: #a1a1aa;
+  --color-text-tertiary: #71717a;
+  --color-text-inverse: #18181b;
+
+  --color-accent: #34d399;
+  --color-accent-hover: #10b981;
+  --color-accent-subtle: #34d39915;
+  --color-accent-ring: #34d39940;
+
+  --color-success: #34d399;
+  --color-success-subtle: #34d39915;
+  --color-warning: #fbbf24;
+  --color-warning-subtle: #fbbf2415;
+  --color-error: #f87171;
+  --color-error-subtle: #f8717115;
+  --color-info: #60a5fa;
+  --color-info-subtle: #60a5fa15;
+
+  --color-skeleton: #27272a;
+  --color-overlay: #00000080;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-page: var(--color-page);
+  --color-page-alt: var(--color-page-alt);
+  --color-card: var(--color-card);
+  --color-card-hover: var(--color-card-hover);
+  --color-elevated: var(--color-elevated);
+  --color-input: var(--color-input);
+  --color-border: var(--color-border);
+  --color-border-subtle: var(--color-border-subtle);
+  --color-divider: var(--color-divider);
+
+  --color-text-primary: var(--color-text-primary);
+  --color-text-secondary: var(--color-text-secondary);
+  --color-text-tertiary: var(--color-text-tertiary);
+  --color-text-inverse: var(--color-text-inverse);
+
+  --color-accent: var(--color-accent);
+  --color-accent-hover: var(--color-accent-hover);
+  --color-accent-subtle: var(--color-accent-subtle);
+  --color-accent-ring: var(--color-accent-ring);
+
+  --color-success: var(--color-success);
+  --color-success-subtle: var(--color-success-subtle);
+  --color-warning: var(--color-warning);
+  --color-warning-subtle: var(--color-warning-subtle);
+  --color-error: var(--color-error);
+  --color-error-subtle: var(--color-error-subtle);
+  --color-info: var(--color-info);
+  --color-info-subtle: var(--color-info-subtle);
+
+  --color-skeleton: var(--color-skeleton);
+  --color-overlay: var(--color-overlay);
+
+  --font-sans: ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, monospace;
+
+  --radius-btn: 0.5rem;
+  --radius-card: 0.75rem;
+  --radius-input: 0.5rem;
+  --radius-badge: 9999px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  *, *::before, *::after {
+    border-color: var(--color-border);
+  }
+
+  body {
+    background: var(--color-page);
+    color: var(--color-text-primary);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::selection {
+    background: var(--color-accent-subtle);
+    color: var(--color-accent);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@utility scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
 }

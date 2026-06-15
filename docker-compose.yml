@@ -1,0 +1,99 @@
+services:
+  # ============================================================
+  # YouBox — приватный загрузчик видео/аудио
+  # ============================================================
+  youbox:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: youbox:latest
+    container_name: youbox
+    restart: unless-stopped
+
+    ports:
+      - "127.0.0.1:${PORT:-3000}:3000"
+
+    environment:
+      - APP_PIN_HASH=${APP_PIN_HASH:?Обязательно: SHA-256 хеш от PIN}
+      - DATA_DIR=/data
+      - SESSION_TTL=${SESSION_TTL:-86400}
+      - FILE_TTL=${FILE_TTL:-7200}
+      - LOGIN_MAX_ATTEMPTS=${LOGIN_MAX_ATTEMPTS:-5}
+      - LOGIN_LOCKOUT_DURATION=${LOGIN_LOCKOUT_DURATION:-300}
+      - YT_COOKIES_FILE=${YT_COOKIES_FILE:-}
+      - PLAYLIST_MAX_ITEMS=${PLAYLIST_MAX_ITEMS:-10}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - NODE_ENV=production
+      - NEXT_TELEMETRY_DISABLED=1
+
+    volumes:
+      # Персистентные данные: БД, загрузки, временные файлы
+      - youbox_data:/data
+      # Cookies файл (опционально, read-only)
+      - ${YT_COOKIES_FILE:-./data/cookies.txt}:/cookies/cookies.txt:ro
+
+    env_file:
+      - path: .env
+        required: true
+
+    healthcheck:
+      test: /healthcheck.sh
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
+
+    security_opt:
+      - no-new-privileges:true
+
+    cap_drop:
+      - ALL
+
+    read_only: true
+    tmpfs:
+      - /tmp
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    networks:
+      - youbox_network
+
+  # ============================================================
+  # Caddy — reverse proxy с автоматическим HTTPS (опционально)
+  # Раскомментируйте для продакшена с доменом
+  # ============================================================
+  # caddy:
+  #   image: caddy:2-alpine
+  #   container_name: youbox-caddy
+  #   restart: unless-stopped
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./Caddyfile:/etc/caddy/Caddyfile:ro
+  #     - caddy_data:/data
+  #     - caddy_config:/config
+  #   networks:
+  #     - youbox_network
+  #   depends_on:
+  #     - youbox
+
+networks:
+  youbox_network:
+    driver: bridge
+
+volumes:
+  youbox_data:
+    driver: local
+    # Для привязки к конкретной директории на хосте:
+    # driver_opts:
+    #   type: none
+    #   device: /path/on/host/youbox_data
+    #   o: bind
+
+  # caddy_data:
+  # caddy_config:
