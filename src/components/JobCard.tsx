@@ -15,11 +15,32 @@ const STATUS_CONFIG: Record<string, { label: string; variant: 'default' | 'succe
   expired: { label: 'Истекло', variant: 'neutral' },
 }
 
+const STAGE_LABELS: Record<string, string> = {
+  extracting: 'Извлечение информации…',
+  downloading: 'Скачивание…',
+  muxing: 'Обработка аудио…',
+}
+
 function formatSize(bytes: number | null): string {
   if (bytes === null || bytes === 0) return ''
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
   if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`
   return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`
+}
+
+function formatSpeed(bytesPerSec: number | null): string {
+  if (bytesPerSec === null || bytesPerSec === 0) return ''
+  if (bytesPerSec >= 1024 * 1024 * 1024) return `${(bytesPerSec / (1024 * 1024 * 1024)).toFixed(1)} GiB/s`
+  if (bytesPerSec >= 1024 * 1024) return `${(bytesPerSec / (1024 * 1024)).toFixed(1)} MiB/s`
+  if (bytesPerSec >= 1024) return `${(bytesPerSec / 1024).toFixed(0)} KiB/s`
+  return `${bytesPerSec} B/s`
+}
+
+function formatEta(seconds: number | null): string {
+  if (seconds === null) return ''
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
+  return `${m}:${String(s).padStart(2, '0')}`
 }
 
 function timeAgo(timestamp: number): string {
@@ -44,7 +65,12 @@ interface Props {
 
 export function JobCard({ job, onCancel, onRetry, onReRun, onClick, compact }: Props) {
   const config = STATUS_CONFIG[job.status] || STATUS_CONFIG.created
-  const showProgress = ['downloading', 'muxing'].includes(job.status) && job.progress > 0
+
+  const isProgressing = ['downloading', 'muxing'].includes(job.status)
+
+  const showProgress = isProgressing
+  const indeterminate = isProgressing && (job.progress <= 0 || (job.status === 'muxing'))
+  const hasDetail = job.progress_speed !== null || job.progress_eta !== null || (job.progress_downloaded !== null && job.progress_total !== null)
 
   const handleClick = () => {
     if (onClick) onClick(job)
@@ -72,12 +98,27 @@ export function JobCard({ job, onCancel, onRetry, onReRun, onClick, compact }: P
     a.click()
   }
 
+  const progressLabel = () => {
+    if (indeterminate) {
+      return STAGE_LABELS[job.current_stage] || config.label
+    }
+    if (hasDetail) {
+      const parts: string[] = []
+      if (job.progress_speed) parts.push(formatSpeed(job.progress_speed))
+      if (job.progress_eta) parts.push(`${formatEta(job.progress_eta)}`)
+      if (parts.length > 0) return parts.join(' · ')
+    }
+    return ''
+  }
+
   return (
     <div
       onClick={handleClick}
-      className={`bg-card border border-border rounded-lg transition-all duration-150
+      className={`bg-card border rounded-lg transition-all duration-200
         ${onClick ? 'cursor-pointer hover:border-accent/30 hover:shadow-sm' : ''}
-        ${compact ? 'px-3 py-2.5' : 'px-4 py-3'}`}
+        ${compact ? 'px-3 py-2.5' : 'px-4 py-3'}
+        ${job.status === 'ready' ? 'border-success/30 bg-success-subtle/[0.03]' : 'border-border'}
+        ${job.status === 'failed' ? 'border-error/30 bg-error-subtle/[0.03]' : ''}`}
     >
       <div className="flex items-start gap-3">
         <div className="flex-1 min-w-0">
@@ -87,6 +128,7 @@ export function JobCard({ job, onCancel, onRetry, onReRun, onClick, compact }: P
             </p>
             <Badge variant={config.variant}>{config.label}</Badge>
           </div>
+
           <div className="flex items-center gap-2.5 text-xs text-text-tertiary">
             {job.filesize && job.status === 'ready' && (
               <span>{formatSize(job.filesize)}</span>
@@ -95,18 +137,36 @@ export function JobCard({ job, onCancel, onRetry, onReRun, onClick, compact }: P
               <span>{job.playlist_index || 1}/{job.playlist_size}</span>
             )}
             {job.mode && (
-              <span className="capitalize">{job.mode === 'audio' ? 'Аудио' : job.mode === 'video' ? 'Видео' : 'Плейлист'}</span>
+              <span className="capitalize">
+                {job.mode === 'audio' ? 'Аудио' : job.mode === 'video' ? 'Видео' : 'Плейлист'}
+              </span>
             )}
             <span>{timeAgo(job.created_at)}</span>
           </div>
+
           {showProgress && (
-            <div className="mt-2 flex items-center gap-2.5">
-              <ProgressBar value={job.progress} className="flex-1 max-w-[160px]" />
-              <span className="text-xs text-text-tertiary tabular-nums">{Math.round(job.progress)}%</span>
+            <div className="mt-2">
+              <ProgressBar
+                value={job.progress}
+                indeterminate={indeterminate}
+                label={progressLabel()}
+                showPercent={!indeterminate}
+              />
             </div>
           )}
+
+          {job.status === 'extracting' && (
+            <div className="mt-2">
+              <ProgressBar
+                value={0}
+                indeterminate
+                label="Получение информации…"
+              />
+            </div>
+          )}
+
           {job.status === 'failed' && job.error_message && !compact && (
-            <p className="text-xs text-error mt-1.5 line-clamp-1">{job.error_message}</p>
+            <p className="text-xs text-error mt-1.5 line-clamp-2">{job.error_message}</p>
           )}
         </div>
 
@@ -114,13 +174,10 @@ export function JobCard({ job, onCancel, onRetry, onReRun, onClick, compact }: P
           {job.status === 'ready' && (
             <button
               onClick={handleDownload}
-              className="p-1.5 text-accent hover:bg-accent-subtle rounded-md transition-colors"
+              className="px-3 py-1.5 text-xs font-medium text-white bg-accent hover:bg-accent-hover rounded-md transition-colors"
               aria-label="Скачать"
             >
-              <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
-                <path d="M7.5 2v8M4 7.5l3.5 3.5L11 7.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M2 11.5v1.5h11v-1.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-              </svg>
+              Скачать
             </button>
           )}
           {job.status === 'failed' && onRetry && (
@@ -128,6 +185,7 @@ export function JobCard({ job, onCancel, onRetry, onReRun, onClick, compact }: P
               onClick={handleRetry}
               className="p-1.5 text-text-secondary hover:text-accent rounded-md transition-colors"
               aria-label="Повторить"
+              title="Повторить"
             >
               <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
                 <path d="M12.5 4.5a6 6 0 1 0 1 3.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
@@ -135,7 +193,7 @@ export function JobCard({ job, onCancel, onRetry, onReRun, onClick, compact }: P
               </svg>
             </button>
           )}
-          {job.status === 'ready' && onReRun && (
+          {(job.status === 'ready' || job.status === 'failed' || job.status === 'expired') && onReRun && (
             <button
               onClick={handleReRun}
               className="p-1.5 text-text-secondary hover:text-accent rounded-md transition-colors"
@@ -150,7 +208,7 @@ export function JobCard({ job, onCancel, onRetry, onReRun, onClick, compact }: P
               </svg>
             </button>
           )}
-          {onCancel && (job.status === 'queued' || job.status === 'downloading') && (
+          {onCancel && (job.status === 'queued' || job.status === 'downloading' || job.status === 'extracting') && (
             <button
               onClick={handleCancel}
               className="p-1.5 text-text-tertiary hover:text-error rounded-md transition-colors"

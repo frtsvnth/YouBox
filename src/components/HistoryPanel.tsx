@@ -12,9 +12,10 @@ interface Props {
   onClose: () => void
   onJobClick?: (job: Job) => void
   onJobReRun?: (job: Job) => void
+  onJobRetry?: (id: string) => void
 }
 
-export function HistoryPanel({ open, onClose, onJobClick, onJobReRun }: Props) {
+export function HistoryPanel({ open, onClose, onJobClick, onJobReRun, onJobRetry }: Props) {
   const [jobs, setJobs] = useState<Job[]>([])
   const [loading, setLoading] = useState(false)
   const mountedRef = useRef(true)
@@ -97,7 +98,7 @@ export function HistoryPanel({ open, onClose, onJobClick, onJobReRun }: Props) {
               </h3>
               <div className="flex flex-col gap-1.5">
                 {failed.map((job) => (
-                  <JobCard key={job.id} job={job} onClick={onJobClick} compact />
+                  <JobCard key={job.id} job={job} onClick={onJobClick} onRetry={onJobRetry} compact />
                 ))}
               </div>
             </section>

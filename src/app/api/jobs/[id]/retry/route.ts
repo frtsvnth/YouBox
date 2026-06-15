@@ -14,24 +14,24 @@ export async function POST(
   const { id } = await params
   const db = getDb()
   const row = db
-    .prepare("SELECT status FROM jobs WHERE id = ? AND status IN ('queued','downloading','extracting')")
+    .prepare("SELECT status FROM jobs WHERE id = ? AND status IN ('failed','expired')")
     .get(id) as { status: string } | undefined
 
   if (!row) {
     return Response.json(
-      { error: 'Задача не найдена или не может быть отменена', code: 'INVALID_STATE' },
+      { error: 'Задача не найдена или не может быть повторена', code: 'INVALID_STATE' },
       { status: 400 },
     )
   }
 
-  const t = Math.floor(Date.now() / 1000)
   cleanupJobFiles(id)
-  db.prepare('UPDATE jobs SET status = ?, error_message = ?, updated_at = ? WHERE id = ?').run(
-    'failed',
-    'отменено пользователем',
-    t,
-    id,
-  )
+
+  const t = Math.floor(Date.now() / 1000)
+  db.prepare(
+    `UPDATE jobs SET status = 'created', progress = 0, progress_downloaded = NULL,
+     progress_total = NULL, progress_speed = NULL, progress_eta = NULL,
+     current_stage = '', error_message = NULL, updated_at = ? WHERE id = ?`,
+  ).run(t, id)
 
   return Response.json({ ok: true })
 }

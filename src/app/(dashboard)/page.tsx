@@ -135,8 +135,11 @@ export default function DashboardPage() {
     setDetailsOpen(true)
   }, [])
 
-  const handleJobRetry = useCallback(async (_id: string) => {
-    setRefreshKey((k) => k + 1)
+  const handleJobRetry = useCallback(async (id: string) => {
+    try {
+      await fetch(`/api/jobs/${id}/retry`, { method: 'POST' })
+      setRefreshKey((k) => k + 1)
+    } catch { /* silent */ }
   }, [])
 
   const handleJobReRun = useCallback((job: Job) => {
@@ -294,6 +297,7 @@ export default function DashboardPage() {
           onClose={() => setHistoryOpen(false)}
           onJobClick={handleJobClick}
           onJobReRun={handleJobReRun}
+          onJobRetry={handleJobRetry}
         />
       </div>
     </ThemeProvider>

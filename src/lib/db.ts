@@ -58,6 +58,14 @@ const MIGRATIONS: string[] = [
   `
     ALTER TABLE jobs ADD COLUMN format_id TEXT;
   `,
+  // v4: progress details, current_stage
+  `
+    ALTER TABLE jobs ADD COLUMN progress_downloaded INTEGER;
+    ALTER TABLE jobs ADD COLUMN progress_total INTEGER;
+    ALTER TABLE jobs ADD COLUMN progress_speed REAL;
+    ALTER TABLE jobs ADD COLUMN progress_eta INTEGER;
+    ALTER TABLE jobs ADD COLUMN current_stage TEXT DEFAULT '';
+  `,
 ]
 
 function runMigrations(db: Database.Database): void {

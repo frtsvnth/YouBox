@@ -1,6 +1,7 @@
 import { getDb } from '@/lib/db'
 import { getSessionId, validateSession } from '@/lib/auth'
 import { env } from '@/lib/env'
+import { safeDownloadFilename } from '@/lib/filename'
 import fs from 'node:fs'
 import path from 'node:path'
 import type { Job } from '@/types'
@@ -48,12 +49,12 @@ export async function GET(
   const contentType = contentTypeMap[ext] ?? 'application/octet-stream'
 
   const fileBuffer = fs.readFileSync(filePath)
-  const safeFilename = encodeURIComponent(job.filename)
+  const downloadName = safeDownloadFilename(job.title, ext)
 
   return new Response(fileBuffer, {
     headers: {
       'Content-Type': contentType,
-      'Content-Disposition': `attachment; filename*=UTF-8''${safeFilename}`,
+      'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(downloadName)}`,
       'Content-Length': String(stat.size),
     },
   })

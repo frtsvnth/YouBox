@@ -17,6 +17,11 @@ export interface Job {
   filesize: number | null
   error_message: string | null
   progress: number
+  progress_downloaded: number | null
+  progress_total: number | null
+  progress_speed: number | null
+  progress_eta: number | null
+  current_stage: string
   created_at: number
   updated_at: number
   ready_at: number | null

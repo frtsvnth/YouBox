@@ -24,6 +24,21 @@ function formatSize(bytes: number | null): string {
   return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`
 }
 
+function formatSpeed(bytesPerSec: number | null): string {
+  if (bytesPerSec === null || bytesPerSec === 0) return '—'
+  if (bytesPerSec >= 1024 * 1024 * 1024) return `${(bytesPerSec / (1024 * 1024 * 1024)).toFixed(1)} GiB/s`
+  if (bytesPerSec >= 1024 * 1024) return `${(bytesPerSec / (1024 * 1024)).toFixed(1)} MiB/s`
+  if (bytesPerSec >= 1024) return `${(bytesPerSec / 1024).toFixed(0)} KiB/s`
+  return `${bytesPerSec} B/s`
+}
+
+function formatEta(seconds: number | null): string {
+  if (seconds === null) return '—'
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
+  return `${m}:${String(s).padStart(2, '0')}`
+}
+
 function formatDate(ts: number): string {
   return new Date(ts * 1000).toLocaleString('ru-RU', {
     day: 'numeric', month: 'numeric', year: 'numeric',
@@ -46,7 +61,9 @@ export function JobDetailsDrawer({ job, open, onClose, onCancel, onRetry, onReRu
 
   const config = STATUS_CONFIG[j.status] || STATUS_CONFIG.created
   const isActive = ['queued', 'downloading', 'muxing', 'extracting'].includes(j.status)
-  const showProgress = ['downloading', 'muxing'].includes(j.status) && j.progress > 0
+  const isProgressing = ['downloading', 'muxing'].includes(j.status)
+  const showProgress = isProgressing || j.status === 'extracting'
+  const indeterminate = isProgressing && (j.progress <= 0 || j.status === 'muxing') || j.status === 'extracting'
 
   function handleDownload() {
     const a = document.createElement('a')
@@ -72,10 +89,32 @@ export function JobDetailsDrawer({ job, open, onClose, onCancel, onRetry, onReRu
         {showProgress && (
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs text-text-secondary">{j.status === 'muxing' ? 'Обработка...' : 'Скачивание...'}</span>
-              <span className="text-xs text-text-tertiary tabular-nums">{Math.round(j.progress)}%</span>
+              <span className="text-xs text-text-secondary">
+                {j.status === 'extracting' ? 'Получение информации…' :
+                 j.status === 'muxing' ? 'Обработка…' :
+                 indeterminate ? 'Подготовка…' : 'Скачивание…'}
+              </span>
+              {!indeterminate && (
+                <span className="text-xs text-text-tertiary tabular-nums">{Math.round(j.progress)}%</span>
+              )}
             </div>
-            <ProgressBar value={j.progress} />
+            <ProgressBar value={j.progress} indeterminate={indeterminate} />
+            {(j.progress_speed !== null || j.progress_eta !== null) && (
+              <div className="flex items-center gap-3 mt-1.5">
+                {j.progress_speed !== null && (
+                  <span className="text-[11px] text-text-tertiary">{formatSpeed(j.progress_speed)}</span>
+                )}
+                {j.progress_eta !== null && (
+                  <span className="text-[11px] text-text-tertiary">ETA {formatEta(j.progress_eta)}</span>
+                )}
+                {j.progress_downloaded !== null && (
+                  <span className="text-[11px] text-text-tertiary">
+                    {formatSize(j.progress_downloaded)}
+                    {j.progress_total !== null && ` / ${formatSize(j.progress_total)}`}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         )}
 

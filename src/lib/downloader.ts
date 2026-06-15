@@ -161,6 +161,16 @@ export interface DownloadOptions {
   mode: DownloadMode
   formatId?: string
   onProgress?: (percent: number) => void
+  onProgressDetail?: (detail: ProgressDetail) => void
+  onStageChange?: (stage: string) => void
+}
+
+export interface ProgressDetail {
+  percent: number
+  downloadedBytes: number | null
+  totalBytes: number | null
+  speed: number | null
+  etaSeconds: number | null
 }
 
 export interface DownloadResult {
@@ -172,7 +182,7 @@ export interface DownloadResult {
 }
 
 export async function downloadFile(options: DownloadOptions): Promise<DownloadResult> {
-  const { url, jobId, format, mode, formatId } = options
+  const { url, jobId, format, mode, formatId, onProgress, onProgressDetail, onStageChange } = options
 
   const tmpDir = path.join(env.TMP_DIR(), jobId)
   fs.mkdirSync(tmpDir, { recursive: true })
@@ -195,6 +205,7 @@ export async function downloadFile(options: DownloadOptions): Promise<DownloadRe
     args.push(...formatArgs(format))
   }
 
+  args.push('--newline')
   args.push('-o', outputTemplate, url)
 
   const sensitiveIndices = findSensitiveIndices(args)
@@ -206,6 +217,9 @@ export async function downloadFile(options: DownloadOptions): Promise<DownloadRe
       args,
       timeout: 600_000,
       sensitiveArgIndices: sensitiveIndices,
+      onStderrLine: (line) => {
+        parseProgressLine(line, onProgress, onProgressDetail, onStageChange)
+      },
     })
   } catch (err) {
     if (err instanceof Error && err.message.includes('binary not found')) {
@@ -308,10 +322,90 @@ export function cleanupJobFiles(jobId: string): void {
   }
 }
 
+const PROGRESS_RE = /^\[download\]\s+(\d+\.?\d*)%\s*(?:of\s+~?([\d.]+[GMK]iB|[\d.]+)?)?\s*(?:at\s+([\d.]+[GMK]iB\/s))?\s*(?:ETA\s+(\d+:\d+))?/
+const EXTRACT_RE = /^\[ExtractAudio\]/
+const MUX_RE = /^\[Muxer\]|^\[Merger\]/
+
+function parseProgressLine(
+  line: string,
+  onProgress?: (percent: number) => void,
+  onProgressDetail?: (detail: ProgressDetail) => void,
+  onStageChange?: (stage: string) => void,
+): void {
+  if (!onProgress && !onProgressDetail && !onStageChange) return
+
+  if (EXTRACT_RE.test(line) && onStageChange) {
+    onStageChange('muxing')
+    return
+  }
+  if (MUX_RE.test(line) && onStageChange) {
+    onStageChange('muxing')
+    return
+  }
+
+  const match = line.match(PROGRESS_RE)
+  if (!match) return
+
+  const percent = parseFloat(match[1])
+
+  if (onProgress) onProgress(percent)
+
+  if (!onProgressDetail) return
+
+  const totalStr = match[2]
+  const speedStr = match[3]
+  const etaStr = match[4]
+
+  let totalBytes: number | null = null
+  if (totalStr) totalBytes = parseSize(totalStr)
+
+  let speed: number | null = null
+  if (speedStr) speed = parseSize(speedStr)
+
+  let etaSeconds: number | null = null
+  if (etaStr) {
+    const [m, s] = etaStr.split(':').map(Number)
+    etaSeconds = m * 60 + s
+  }
+
+  const downloadedBytes = totalBytes !== null ? Math.round(totalBytes * percent / 100) : null
+
+  onProgressDetail({ percent, downloadedBytes, totalBytes, speed, etaSeconds })
+}
+
+function parseSize(sizeStr: string): number | null {
+  const match = sizeStr.match(/^([\d.]+)\s*([GMK]iB)?$/)
+  if (!match) return null
+
+  const num = parseFloat(match[1])
+  const unit = match[2]
+
+  switch (unit) {
+    case 'GiB': return Math.round(num * 1024 * 1024 * 1024)
+    case 'MiB': return Math.round(num * 1024 * 1024)
+    case 'KiB': return Math.round(num * 1024)
+    default: return Math.round(num)
+  }
+}
+
+export function formatSpeed(bytesPerSec: number | null): string {
+  if (bytesPerSec === null) return ''
+  if (bytesPerSec >= 1024 * 1024 * 1024) return `${(bytesPerSec / (1024 * 1024 * 1024)).toFixed(1)} GiB/s`
+  if (bytesPerSec >= 1024 * 1024) return `${(bytesPerSec / (1024 * 1024)).toFixed(1)} MiB/s`
+  if (bytesPerSec >= 1024) return `${(bytesPerSec / 1024).toFixed(0)} KiB/s`
+  return `${bytesPerSec} B/s`
+}
+
+export function formatEta(seconds: number | null): string {
+  if (seconds === null) return ''
+  if (seconds >= 3600) return `${Math.floor(seconds / 3600)}:${String(Math.floor((seconds % 3600) / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
+}
+
 const DEST_RE = /\[download\] Destination:\s+(.+)/i
 const MERGE_RE = /\[Merger\] Merging formats into\s+"([^"]+)"/i
 
-function parseDownloadPath(stderr: string, tmpDir: string): string | null {
+function parseDownloadPath(stderr: string, _tmpDir: string): string | null {
   const mergeMatch = stderr.match(MERGE_RE)
   if (mergeMatch) return mergeMatch[1]
 

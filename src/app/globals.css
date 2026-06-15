@@ -2,38 +2,10 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-:root {
-  --color-page: #fafafa;
-  --color-page-alt: #f4f4f5;
-  --color-card: #ffffff;
-  --color-card-hover: #fafafa;
-  --color-elevated: #ffffff;
-  --color-input: #ffffff;
-  --color-border: #e4e4e7;
-  --color-border-subtle: #e4e4e780;
-  --color-divider: #f4f4f5;
-
-  --color-text-primary: #18181b;
-  --color-text-secondary: #71717a;
-  --color-text-tertiary: #a1a1aa;
-  --color-text-inverse: #fafafa;
-
-  --color-accent: #10b981;
-  --color-accent-hover: #059669;
-  --color-accent-subtle: #10b98115;
-  --color-accent-ring: #10b98140;
-
-  --color-success: #10b981;
-  --color-success-subtle: #10b98115;
-  --color-warning: #f59e0b;
-  --color-warning-subtle: #f59e0b15;
-  --color-error: #ef4444;
-  --color-error-subtle: #ef444415;
-  --color-info: #3b82f6;
-  --color-info-subtle: #3b82f615;
-
-  --color-skeleton: #e4e4e7;
-  --color-overlay: #18181b80;
+@keyframes indeterminate {
+  0% { transform: translateX(-100%); }
+  50% { transform: translateX(200%); }
+  100% { transform: translateX(400%); }
 }
 
 .dark {
@@ -110,6 +82,8 @@
   --radius-card: 0.75rem;
   --radius-input: 0.5rem;
   --radius-badge: 9999px;
+
+  --animate-indeterminate: indeterminate 2s ease-in-out infinite;
 }
 
 @layer base {

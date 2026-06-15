@@ -19,6 +19,7 @@ export interface SubprocessOptions {
   timeout?: number
   env?: Record<string, string | undefined>
   sensitiveArgIndices?: number[]
+  onStderrLine?: (line: string) => void
 }
 
 export async function runSubprocess(options: SubprocessOptions): Promise<SubprocessResult> {
@@ -48,13 +49,22 @@ export async function runSubprocess(options: SubprocessOptions): Promise<Subproc
 
     let stdout = ''
     let stderr = ''
+    let stderrBuffer = ''
 
     proc.stdout.on('data', (chunk: Buffer) => {
       stdout += chunk.toString()
     })
 
     proc.stderr.on('data', (chunk: Buffer) => {
-      stderr += chunk.toString()
+      stderrBuffer += chunk.toString()
+      const lines = stderrBuffer.split('\n')
+      stderrBuffer = lines.pop() ?? ''
+      for (const line of lines) {
+        if (options.onStderrLine) {
+          options.onStderrLine(line)
+        }
+      }
+      stderr += lines.join('\n') + '\n'
     })
 
     proc.on('error', (err) => {

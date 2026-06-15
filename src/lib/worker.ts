@@ -64,6 +64,20 @@ async function processNextJob(): Promise<void> {
           onProgress: (pct) => {
             db.prepare('UPDATE jobs SET progress = ?, updated_at = ? WHERE id = ?').run(pct, t, queued.id)
           },
+          onProgressDetail: (detail) => {
+            db.prepare(
+              `UPDATE jobs SET progress = ?, progress_downloaded = ?, progress_total = ?,
+               progress_speed = ?, progress_eta = ?, updated_at = ? WHERE id = ?`,
+            ).run(
+              detail.percent, detail.downloadedBytes, detail.totalBytes,
+              detail.speed, detail.etaSeconds, t, queued.id,
+            )
+          },
+          onStageChange: (stage) => {
+            db.prepare(
+              "UPDATE jobs SET current_stage = ?, status = ?, updated_at = ? WHERE id = ?",
+            ).run(stage, stage === 'muxing' ? 'muxing' : queued.status, t, queued.id)
+          },
         })
 
         const readyAt = now()
