@@ -15,6 +15,9 @@ services:
 
     env_file: .env
 
+    environment:
+      - YT_COOKIES_FILE=/cookies/cookies.txt
+
     healthcheck:
       test: /healthcheck.sh
       interval: 30s
