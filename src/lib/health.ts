@@ -4,9 +4,9 @@ import { runSubprocess } from './subprocess'
 import fs from 'node:fs'
 import type { HealthStatus } from '@/types'
 
-async function checkBinary(bin: string): Promise<{ available: boolean; version: string | null }> {
+async function checkBinary(bin: string, versionArgs?: string[]): Promise<{ available: boolean; version: string | null }> {
   try {
-    const result = await runSubprocess({ bin, args: ['--version'], timeout: 5000 })
+    const result = await runSubprocess({ bin, args: versionArgs ?? ['--version'], timeout: 5000 })
     const version = result.stdout.trim().split('\n')[0] || null
     return { available: result.exitCode === 0, version }
   } catch {
@@ -17,7 +17,7 @@ async function checkBinary(bin: string): Promise<{ available: boolean; version: 
 export async function getHealth(): Promise<HealthStatus> {
   const [ytDlp, ffmpeg] = await Promise.all([
     checkBinary('yt-dlp'),
-    checkBinary('ffmpeg'),
+    checkBinary('ffmpeg', ['-version']),
   ])
 
   let dbAvailable = false
