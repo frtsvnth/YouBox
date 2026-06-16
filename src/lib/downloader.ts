@@ -8,7 +8,7 @@ import type { ExtractedMetadata, FormatInfo, ExtractedEntry, OutputFormat, Downl
 
 const SENSITIVE_FLAGS = new Set(['--cookies'])
 
-const JS_RT_ARGS = ['--js-runtimes', 'node']
+const JS_RT_ARGS = ['--js-runtimes', 'node', '--remote-components', 'ejs:github']
 
 function cookiesArgs(): string[] {
   if (env.YT_COOKIES_FILE && fs.existsSync(env.YT_COOKIES_FILE)) {

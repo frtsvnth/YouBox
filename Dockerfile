@@ -60,18 +60,7 @@ ENV NODE_ENV=production
 ENV PORT=3007
 ENV DATA_DIR=/data
 ENV NEXT_TELEMETRY_DISABLED=1
-
-HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
-  CMD /healthcheck.sh
-
-CMD ["node", "server.js"]
-
-EXPOSE 3007
-
-ENV NODE_ENV=production
-ENV PORT=3007
-ENV DATA_DIR=/data
-ENV NEXT_TELEMETRY_DISABLED=1
+ENV HOME=/tmp
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
   CMD /healthcheck.sh
