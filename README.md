@@ -41,3 +41,15 @@ npm run dev
 - Встроенная панель логов (worker, yt-dlp, cleanup) в реальном времени
 - Тёмная и светлая тема
 - Защита PIN-кодом + lockout от brute-force
+- Работа по HTTP (COOKIE_SECURE=false) и HTTPS
+
+## Переменные окружения
+
+| Переменная | Описание |
+|-----------|----------|
+| `APP_PIN_HASH` | SHA-256 хеш от PIN (обязательно) |
+| `COOKIE_SECURE` | `false` для HTTP, `true` для HTTPS (по умолчанию) |
+| `YT_COOKIES_FILE` | Путь к cookies.txt для yt-dlp |
+| `DATA_DIR` | Директория данных (по умолч. `./data`) |
+| `PORT` | Порт сервера (по умолч. `3007`) |
+| `LOG_LEVEL` | `debug`, `info`, `warn`, `error` |

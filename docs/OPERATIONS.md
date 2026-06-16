@@ -40,9 +40,10 @@ curl -s -o /dev/null -w "%{http_code}" http://localhost:3007/api/health
 
 ### Когда статус degraded
 
-- **Cookies настроены, но файл отсутствует** — создайте или скопируйте cookies.txt
+- **Cookies настроены, но файл отсутствует** — создайте или скопируйте cookies.txt (`chmod 600`)
 - **yt-dlp не установлен** — пересоберите образ (`docker compose build --pull`)
 - **ffmpeg не установлен** — пересоберите образ
+- **yt-dlp жалуется на JS runtime** — проверьте версию yt-dlp и наличие node в контейнере
 
 Контейнер продолжает работать, но функциональность может быть ограничена.
 
@@ -174,7 +175,9 @@ cd /opt/youbox
 
 ### Обновление только yt-dlp
 
-yt-dlp обновляется часто, независимо от приложения:
+yt-dlp обновляется часто, независимо от приложения. YouTube также требует
+JS runtime для расшифровки форматов — node.js встроен в образ, поэтому
+достаточно обновить yt-dlp:
 
 ```bash
 # Без перезапуска
@@ -264,8 +267,8 @@ curl -s https://youbox.example.com/api/health
 {
   "status": "ok",
   "app": { "uptime": 123456 },
-  "ytDlp": { "available": true, "version": "..." },
-  "ffmpeg": { "available": true, "version": "..." },
+  "ytDlp": { "available": true, "version": "2026.06.09" },
+  "ffmpeg": { "available": true, "version": "5.1.9" },
   "cookiesFile": { "available": true, "path": null },
   "database": { "available": true, "jobCount": 5 }
 }
@@ -289,6 +292,7 @@ curl -s https://youbox.example.com/api/health
 |--------|--------------|------|
 | APP_PIN_HASH | process.env → subprocess → НЕ логируется | Низкий (не логируется) |
 | AUTH_PIN | process.env → subprocess → НЕ логируется | Низкий (не логируется) |
+| COOKIE_SECURE | process.env | Низкий (не секрет) |
 | Cookies path | `/api/health` — path скрыт (`null`) | Низкий (path не отдаётся) |
 | Cookies contents | аргумент `--cookies <path>` → redacted | Нулевой (redacted в debug) |
 | URL видео | Логи воркера (info) | Средний (это user-data) |

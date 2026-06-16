@@ -63,6 +63,11 @@ echo -n "твой-секретный-пин-код" | shasum -a 256 | cut -d' ' 
 # Вставьте результат в .env
 ```
 
+**Если без HTTPS — добавьте в .env:**
+```bash
+echo "COOKIE_SECURE=false" >> .env
+```
+
 ```bash
 # 4. Запуск
 ./deploy/deploy.sh
@@ -106,6 +111,7 @@ cd /opt/youbox
 # 5. Настройка .env и запуск
 cp .env.example .env
 nano .env  # установите APP_PIN_HASH
+echo "COOKIE_SECURE=false" >> .env  # если без HTTPS
 ./deploy/deploy.sh
 ```
 
@@ -250,13 +256,13 @@ maxretry = 3
 bantime = 3600
 ```
 
-### 4. Docker security (уже настроено)
+### Docker security (уже настроено)
 
 - `no-new-privileges:true` — запрет повышения привилегий
 - `cap_drop: ALL` — удаление всех capabilities
-- `read_only: true` — корневая ФС только для чтения
 - `tmpfs: /tmp` — временные файлы в памяти
-- `ports: 127.0.0.1:3007:3007` — сервис не торчит наружу
+- Привязка порта `${PORT:-3007}:3007` — сервис доступен на всех интерфейсах (закрывайте через UFW)
+- `read_only` не используется — bind mount `./data:/data` требует записи
 
 ### 5. IP Allowlist (Caddy)
 
@@ -351,7 +357,7 @@ docker exec youbox yt-dlp --version
 # 2. Скопируйте на сервер
 scp youtube.cookies.txt user@server:/opt/youbox-secrets/youtube.cookies.txt
 
-# 3. На сервере — права
+# 3. На сервере — права (только чтение, yt-dlp не сможет перезаписать)
 ssh user@server
 chmod 600 /opt/youbox-secrets/youtube.cookies.txt
 
@@ -361,6 +367,10 @@ chmod 600 /opt/youbox-secrets/youtube.cookies.txt
 # 5. Перезапустите
 docker compose up -d
 ```
+
+**Важно:** yt-dlp пытается сохранять куки при завершении. Приложение копирует
+файл во временную директорию `/tmp/youbox-cookies.txt` перед вызовом yt-dlp,
+чтобы оригинал остался нетронутым. Файл на хосте должен быть `chmod 600`.
 
 Полная документация: [docs/COOKIES.md](docs/COOKIES.md)
 
@@ -373,6 +383,9 @@ docker compose up -d
 ```bash
 # Подготовка сервера → см. "Сценарии деплоя" выше
 # После клонирования и настройки .env:
+
+# Если без HTTPS — добавьте в .env:
+echo "COOKIE_SECURE=false" >> /opt/youbox/.env
 
 /opt/youbox/deploy/deploy.sh
 ```
@@ -422,7 +435,16 @@ docker inspect --format='{{json .State.Health}}' youbox
 ```bash
 docker exec youbox yt-dlp --version
 docker exec youbox ls -la /cookies/
-docker exec youbox yt-dlp --dump-json --no-download "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+# yt-dlp теперь требует JS runtime для YouTube:
+docker exec youbox yt-dlp --js-runtimes node --remote-components ejs:github \
+  --cookies /cookies/cookies.txt \
+  --dump-json --no-download "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+```
+
+Если ошибка «Requested format is not available» — обновите yt-dlp:
+
+```bash
+docker exec youbox pip install --break-system-packages -U yt-dlp
 ```
 
 ### База данных повреждена

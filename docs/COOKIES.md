@@ -79,19 +79,30 @@ YT_COOKIES_FILE=/opt/youbox-secrets/youtube.cookies.txt
 
 ### 4. Как это работает в Docker Compose
 
-В `docker-compose.yml` cookies файл монтируется **read-only**:
+В `docker-compose.yml` cookies файл монтируется без флага `:ro`:
 
 ```yaml
 volumes:
-  - /opt/youbox-secrets/youtube.cookies.txt:/cookies/cookies.txt:ro
+  - /opt/youbox-secrets/youtube.cookies.txt:/cookies/cookies.txt
 ```
 
 Внутри контейнера:
 - Файл доступен по пути `/cookies/cookies.txt`
-- Приложение (через `env.YT_COOKIES_FILE`) знает этот путь
-- Файл смонтирован `ro` — контейнер не может его изменить или удалить
+- Приложение (через `env.YT_COOKIES_FILE`) знает этот путь как `/cookies/cookies.txt`
+- Перед вызовом yt-dlp приложение **копирует** файл в `/tmp/youbox-cookies.txt`
+- yt-dlp может писать в копию, оригинал остаётся нетронутым
 
-### 5. Проверка
+### 5. Права на файл
+
+На хосте файл должен быть **только для чтения**:
+
+```bash
+chmod 600 /opt/youbox-secrets/youtube.cookies.txt
+```
+
+Это гарантирует, что даже если что-то пойдёт не так, оригинальные куки не будут перезаписаны.
+
+### 6. Проверка
 
 ```bash
 # Проверка что контейнер видит файл
@@ -118,6 +129,9 @@ Cookies-файл живёт от нескольких недель до неск
 
 3. **Видео не загружаются**, хотя сервис работает
 
+4. **Ошибка yt-dlp** «Requested format is not available» — может означать, что
+   куки устарели или yt-dlp нуждается в обновлении JS runtime компонентов
+
 ### Ротация cookies
 
 Когда cookies протухли, замените их на свежие:
@@ -135,7 +149,8 @@ scp fresh_cookies.txt user@server:/tmp/
 - Копирует новый файл во временный
 - Устанавливает права `600`
 - Атомарно заменяет старый файл (через `mv`)
-- **Не требует перезапуска контейнера** — Docker bind mount подхватит изменения
+- **Не требует перезапуска контейнера** — Docker bind mount подхватит изменения,
+  а приложение копирует файл в `/tmp` при каждом вызове yt-dlp
 
 ### Если cookies-файла нет
 
