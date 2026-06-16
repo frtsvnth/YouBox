@@ -8,11 +8,12 @@ FROM node:${NODE_VERSION} AS base
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     ffmpeg \
+    git \
     python3 \
     pip \
   && rm -rf /var/lib/apt/lists/*
 
-RUN pip install --break-system-packages --no-cache-dir yt-dlp
+RUN pip install --break-system-packages --no-cache-dir git+https://github.com/yt-dlp/yt-dlp.git
 
 # ============================================================
 # deps: production node_modules
