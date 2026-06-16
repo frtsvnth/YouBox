@@ -1,5 +1,5 @@
 #!/bin/sh
-RESPONSE=$(node -e "
+node -e "
 const http = require('http');
 http.get('http://localhost:3007/api/health', (res) => {
   let data = '';
@@ -11,6 +11,4 @@ http.get('http://localhost:3007/api/health', (res) => {
     } catch { process.exit(2); }
   });
 }).on('error', () => process.exit(2));
-")
-
-exit $?
+"
