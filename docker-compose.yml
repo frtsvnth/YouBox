@@ -11,7 +11,7 @@ services:
     restart: unless-stopped
 
     ports:
-      - "127.0.0.1:${PORT:-3007}:3007"
+      - "${PORT:-3007}:3007"
 
     env_file: .env
 
