@@ -74,7 +74,7 @@ export async function setSessionCookie(sessionId: string): Promise<void> {
     sameSite: 'lax',
     path: '/',
     maxAge: env.SESSION_TTL,
-    secure: process.env.NODE_ENV === 'production',
+    secure: env.COOKIE_SECURE,
   })
 }
 

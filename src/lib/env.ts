@@ -18,6 +18,7 @@ export const env = {
   AUTH_PIN: process.env.AUTH_PIN ?? null,
   APP_PIN_HASH: process.env.APP_PIN_HASH ?? null,
   DATA_DIR: strEnv('DATA_DIR', './data'),
+  COOKIE_SECURE: process.env.COOKIE_SECURE !== 'false',
   SESSION_TTL: intEnv('SESSION_TTL', 86400),
   FILE_TTL: intEnv('FILE_TTL', 7200),
   PORT: intEnv('PORT', 3007),
