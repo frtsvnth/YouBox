@@ -40,7 +40,7 @@ curl -s -o /dev/null -w "%{http_code}" http://localhost:3007/api/health
 
 ### Когда статус degraded
 
-- **Cookies настроены, но файл отсутствует** — создайте или скопируйте cookies.txt (`chmod 600`)
+- **Cookies настроены, но файл отсутствует** — создайте или скопируйте cookies.txt (`chmod 644`)
 - **yt-dlp не установлен** — пересоберите образ (`docker compose build --pull`)
 - **ffmpeg не установлен** — пересоберите образ
 - **yt-dlp жалуется на JS runtime** — проверьте версию yt-dlp и наличие node в контейнере

@@ -71,7 +71,7 @@ mkdir -p "$COOKIES_DIR"
 # Копируем новый файл поверх текущего (атомарно через временный файл)
 TEMP_FILE="${CURRENT_COOKIES}.tmp"
 cp "$NEW_COOKIES" "$TEMP_FILE"
-chmod 600 "$TEMP_FILE"
+chmod 644 "$TEMP_FILE"
 mv "$TEMP_FILE" "$CURRENT_COOKIES"
 
 echo "[rotate-cookies] Cookies rotated successfully: $CURRENT_COOKIES"

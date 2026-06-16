@@ -66,41 +66,39 @@ scp youtube.cookies.txt user@your-server-ip:/opt/youbox-secrets/youtube.cookies.
 После копирования на сервере:
 ```bash
 ssh user@your-server-ip
-chmod 600 /opt/youbox-secrets/youtube.cookies.txt
+chmod 644 /opt/youbox-secrets/youtube.cookies.txt
 ```
 
-### 3. Настройка YouBox
-
-В файле `/opt/youbox/.env` укажите:
-
-```env
-YT_COOKIES_FILE=/opt/youbox-secrets/youtube.cookies.txt
-```
 
 ### 4. Как это работает в Docker Compose
 
-В `docker-compose.yml` cookies файл монтируется без флага `:ro`:
+В `docker-compose.yml` cookies файл монтируется с флагом `:ro` (read-only),
+чтобы yt-dlp не мог перезаписать оригинал:
 
 ```yaml
 volumes:
-  - /opt/youbox-secrets/youtube.cookies.txt:/cookies/cookies.txt
+  - /opt/youbox-secrets/youtube.cookies.txt:/cookies/cookies.txt:ro
 ```
 
 Внутри контейнера:
 - Файл доступен по пути `/cookies/cookies.txt`
 - Приложение (через `env.YT_COOKIES_FILE`) знает этот путь как `/cookies/cookies.txt`
 - Перед вызовом yt-dlp приложение **копирует** файл в `/tmp/youbox-cookies.txt`
-- yt-dlp может писать в копию, оригинал остаётся нетронутым
+- yt-dlp при выходе пытается перезаписать **все** известные cookie-файлы
+  (включая `/cookies/cookies.txt`). Флаг `:ro` на уровне ядра блокирует запись,
+  а приложение использует копию в `/tmp` — оригинал остаётся нетронутым
 
 ### 5. Права на файл
 
-На хосте файл должен быть **только для чтения**:
+На хосте файл должен быть **доступен для чтения** пользователю контейнера
+(youbox, uid 1001). Контейнер запускается от youbox, поэтому права 644:
 
 ```bash
-chmod 600 /opt/youbox-secrets/youtube.cookies.txt
+chmod 644 /opt/youbox-secrets/youtube.cookies.txt
 ```
 
-Это гарантирует, что даже если что-то пойдёт не так, оригинальные куки не будут перезаписаны.
+Это гарантирует, что контейнер может прочитать файл, но yt-dlp не может
+его перезаписать (флаг `:ro` в монтировании + права 644).
 
 ### 6. Проверка
 
@@ -168,7 +166,7 @@ Docker HEALTHCHECK **не упадёт** в degraded mode (exit code 1 ≠ 2).
 ## Best practices
 
 1. **Выделенный аккаунт**: используйте отдельный Google-аккаунт для экспорта cookies. Не используйте личный.
-2. **Минимальные права**: cookies.txt на сервере — `chmod 600`, директория — `chmod 700`
+2. **Минимальные права**: cookies.txt на сервере — `chmod 644`, директория — `chmod 700`
 3. **Храните вне репозитория**: `/opt/youbox-secrets/` — рекомендованный путь
 4. **Не логируйте**: приложение redactит путь к cookies в debug-логах (заменяет на `<redacted>`)
 5. **Регулярная ротация**: добавьте напоминание в календарь раз в 2 месяца

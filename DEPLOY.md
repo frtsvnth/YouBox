@@ -266,7 +266,7 @@ scp youtube.cookies.txt root@141.136.44.9:/opt/youbox-secrets/youtube.cookies.tx
 
 # 3. На сервере — права (только чтение)
 ssh root@141.136.44.9
-chmod 600 /opt/youbox-secrets/youtube.cookies.txt
+chmod 644 /opt/youbox-secrets/youtube.cookies.txt
 
 # 4. В .env укажите:
 # YT_COOKIES_FILE=/opt/youbox-secrets/youtube.cookies.txt
