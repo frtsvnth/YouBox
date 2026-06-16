@@ -100,7 +100,7 @@ chmod 600 ~/.ssh/config
 
 # 4. Клонирование приватного репозитория
 ssh-keyscan github.com >> ~/.ssh/known_hosts
-git clone git@github.com:ВАШ_НИК/youbox.git /opt/youbox
+git clone git@github.com:frtsvnth/youbox.git /opt/youbox
 cd /opt/youbox
 
 # 5. Настройка .env и запуск
