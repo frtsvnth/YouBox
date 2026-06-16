@@ -14,6 +14,7 @@ services:
 
     environment:
       - YT_COOKIES_FILE=/cookies/cookies.txt
+      - HOSTNAME=0.0.0.0
 
     healthcheck:
       test: /healthcheck.sh
