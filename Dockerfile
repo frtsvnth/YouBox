@@ -49,7 +49,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY healthcheck.sh /healthcheck.sh
 RUN chmod +x /healthcheck.sh
 
-RUN mkdir -p /data/db /data/downloads /data/tmp && \
+RUN mkdir -p /data/db /data/downloads /data/tmp /data/.cache/yt-dlp && \
     chown -R youbox:youbox /data
 
 USER youbox

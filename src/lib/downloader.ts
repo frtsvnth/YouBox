@@ -9,6 +9,8 @@ import type { ExtractedMetadata, FormatInfo, ExtractedEntry, OutputFormat, Downl
 const SENSITIVE_FLAGS = new Set(['--cookies'])
 
 const JS_RT_ARGS = ['--js-runtimes', 'node', '--remote-components', 'ejs:github']
+const OAUTH2_ARGS = ['--username', 'oauth2', '--password', '']
+const CACHE_DIR = '/data/.cache/yt-dlp'
 
 const COOKIES_TMP = '/tmp/youbox-cookies.txt'
 
@@ -125,7 +127,7 @@ export async function extractMetadata(url: string): Promise<ExtractedMetadata> {
     ['--dump-json', '--no-download', '--no-warnings', '--ignore-errors'],
     {},
   )
-  args.push(...cookiesArgs(), ...JS_RT_ARGS, url)
+  args.push(...cookiesArgs(), ...OAUTH2_ARGS, '--cache-dir', CACHE_DIR, ...JS_RT_ARGS, url)
 
   const sensitiveIndices = findSensitiveIndices(args)
 
@@ -204,7 +206,7 @@ export async function downloadFile(options: DownloadOptions): Promise<DownloadRe
 
   args.push('--no-warnings')
   args.push(...playlistLimitArgs(mode))
-  args.push(...cookiesArgs(), ...JS_RT_ARGS)
+  args.push(...cookiesArgs(), ...OAUTH2_ARGS, '--cache-dir', CACHE_DIR, ...JS_RT_ARGS)
 
   if (formatId) {
     args.push('-f', formatId)
