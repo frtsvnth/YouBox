@@ -31,6 +31,10 @@ services:
     tmpfs:
       - /tmp
 
+    volumes:
+      - ./data:/data
+      - ${YT_COOKIES_FILE:-./data/cookies.txt}:/cookies/cookies.txt:ro
+
     logging:
       driver: "json-file"
       options:
@@ -63,15 +67,3 @@ services:
 networks:
   youbox_network:
     driver: bridge
-
-volumes:
-  youbox_data:
-    driver: local
-    # Для привязки к конкретной директории на хосте:
-    # driver_opts:
-    #   type: none
-    #   device: /path/on/host/youbox_data
-    #   o: bind
-
-  # caddy_data:
-  # caddy_config:

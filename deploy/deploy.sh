@@ -48,6 +48,7 @@ case "${1:-deploy}" in
 
     # Создаём необходимые директории
     mkdir -p data/db data/downloads data/tmp
+    chmod 0777 data data/db data/downloads data/tmp
 
     # Билдим и запускаем
     docker compose -f "$COMPOSE_FILE" build --pull

@@ -49,14 +49,21 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY healthcheck.sh /healthcheck.sh
 RUN chmod +x /healthcheck.sh
 
-COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-
 RUN mkdir -p /data/db /data/downloads /data/tmp && \
     chown -R youbox:youbox /data
 
-USER root
-ENTRYPOINT ["/entrypoint.sh"]
+USER youbox
+
+EXPOSE 3007
+
+ENV NODE_ENV=production
+ENV PORT=3007
+ENV DATA_DIR=/data
+ENV NEXT_TELEMETRY_DISABLED=1
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
+  CMD /healthcheck.sh
+
 CMD ["node", "server.js"]
 
 EXPOSE 3007
