@@ -8,6 +8,8 @@ import type { ExtractedMetadata, FormatInfo, ExtractedEntry, OutputFormat, Downl
 
 const SENSITIVE_FLAGS = new Set(['--cookies'])
 
+const JS_RT_ARGS = ['--js-runtimes', 'node']
+
 function cookiesArgs(): string[] {
   if (env.YT_COOKIES_FILE && fs.existsSync(env.YT_COOKIES_FILE)) {
     return ['--cookies', env.YT_COOKIES_FILE]
@@ -115,7 +117,7 @@ export async function extractMetadata(url: string): Promise<ExtractedMetadata> {
     ['--dump-json', '--no-download', '--no-warnings', '--ignore-errors'],
     {},
   )
-  args.push(...cookiesArgs(), url)
+  args.push(...cookiesArgs(), ...JS_RT_ARGS, url)
 
   const sensitiveIndices = findSensitiveIndices(args)
 
@@ -194,7 +196,7 @@ export async function downloadFile(options: DownloadOptions): Promise<DownloadRe
 
   args.push('--no-warnings')
   args.push(...playlistLimitArgs(mode))
-  args.push(...cookiesArgs())
+  args.push(...cookiesArgs(), ...JS_RT_ARGS)
 
   if (formatId) {
     args.push('-f', formatId)
