@@ -34,7 +34,7 @@ services:
 
     volumes:
       - ./data:/data
-      - ${YT_COOKIES_FILE:-./data/cookies.txt}:/cookies/cookies.txt
+      - ${YT_COOKIES_FILE:-./data/cookies.txt}:/cookies/cookies.txt:ro
 
     logging:
       driver: "json-file"
