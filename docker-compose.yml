@@ -13,28 +13,7 @@ services:
     ports:
       - "127.0.0.1:${PORT:-3007}:3007"
 
-    environment:
-      - APP_PIN_HASH=${APP_PIN_HASH:?Обязательно: SHA-256 хеш от PIN}
-      - DATA_DIR=/data
-      - SESSION_TTL=${SESSION_TTL:-86400}
-      - FILE_TTL=${FILE_TTL:-7200}
-      - LOGIN_MAX_ATTEMPTS=${LOGIN_MAX_ATTEMPTS:-5}
-      - LOGIN_LOCKOUT_DURATION=${LOGIN_LOCKOUT_DURATION:-300}
-      - YT_COOKIES_FILE=${YT_COOKIES_FILE:-}
-      - PLAYLIST_MAX_ITEMS=${PLAYLIST_MAX_ITEMS:-10}
-      - LOG_LEVEL=${LOG_LEVEL:-info}
-      - NODE_ENV=production
-      - NEXT_TELEMETRY_DISABLED=1
-
-    volumes:
-      # Персистентные данные: БД, загрузки, временные файлы
-      - youbox_data:/data
-      # Cookies файл (опционально, read-only)
-      - ${YT_COOKIES_FILE:-./data/cookies.txt}:/cookies/cookies.txt:ro
-
-    env_file:
-      - path: .env
-        required: true
+    env_file: .env
 
     healthcheck:
       test: /healthcheck.sh
