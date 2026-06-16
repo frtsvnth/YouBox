@@ -50,11 +50,12 @@ export async function GET(
 
   const fileBuffer = fs.readFileSync(filePath)
   const downloadName = safeDownloadFilename(job.title, ext)
+  const asciiFallback = downloadName.replace(/[^\x20-\x7E]/g, '_')
 
   return new Response(fileBuffer, {
     headers: {
       'Content-Type': contentType,
-      'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(downloadName)}`,
+      'Content-Disposition': `attachment; filename="${asciiFallback}"; filename*=UTF-8''${encodeURIComponent(downloadName)}`,
       'Content-Length': String(stat.size),
     },
   })

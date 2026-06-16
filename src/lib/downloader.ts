@@ -322,7 +322,7 @@ export function cleanupJobFiles(jobId: string): void {
   }
 }
 
-const PROGRESS_RE = /^\[download\]\s+(\d+\.?\d*)%\s*(?:of\s+~?([\d.]+[GMK]iB|[\d.]+)?)?\s*(?:at\s+([\d.]+[GMK]iB\/s))?\s*(?:ETA\s+(\d+:\d+))?/
+const PROGRESS_RE = /^\[download\]\s+(\d+\.?\d*)%\s*(?:of\s+~?([\d.]+[GMK]iB|[\d.]+)?)?\s*(?:at\s+([\d.]+[GMK]iB\/s))?\s*(?:ETA\s+((?:\d+:)?\d+:\d+))?/
 const EXTRACT_RE = /^\[ExtractAudio\]/
 const MUX_RE = /^\[Muxer\]|^\[Merger\]/
 
@@ -360,12 +360,16 @@ function parseProgressLine(
   if (totalStr) totalBytes = parseSize(totalStr)
 
   let speed: number | null = null
-  if (speedStr) speed = parseSize(speedStr)
+  if (speedStr) speed = parseSize(speedStr.replace(/\/s$/, ''))
 
   let etaSeconds: number | null = null
   if (etaStr) {
-    const [m, s] = etaStr.split(':').map(Number)
-    etaSeconds = m * 60 + s
+    const parts = etaStr.split(':').map(Number)
+    if (parts.length === 3) {
+      etaSeconds = parts[0] * 3600 + parts[1] * 60 + parts[2]
+    } else if (parts.length === 2) {
+      etaSeconds = parts[0] * 60 + parts[1]
+    }
   }
 
   const downloadedBytes = totalBytes !== null ? Math.round(totalBytes * percent / 100) : null

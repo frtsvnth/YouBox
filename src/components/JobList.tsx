@@ -36,6 +36,8 @@ function groupJobs(jobs: Job[]): Record<Section, Job[]> {
       groups.attention.push(job)
     } else if (job.status === 'ready') {
       groups.ready.push(job)
+    } else if (job.status === 'expired') {
+      // skip expired in the default list; they show in history
     } else {
       groups.active.push(job)
     }
@@ -54,7 +56,12 @@ export function JobList({ refreshKey = 0, onJobClick, onJobRetry, onJobReRun, on
   const [error, setError] = useState('')
   const mountedRef = useRef(true)
   const prevActiveCountRef = useRef(0)
+  const onActiveCountRef = useRef(onActiveCount)
   const listRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    onActiveCountRef.current = onActiveCount
+  }, [onActiveCount])
 
   const fetchJobs = useCallback(async () => {
     try {
@@ -68,7 +75,7 @@ export function JobList({ refreshKey = 0, onJobClick, onJobRetry, onJobReRun, on
         const activeCount = (data.jobs as Job[]).filter(
           j => ['queued', 'downloading', 'extracting', 'muxing'].includes(j.status)
         ).length
-        if (onActiveCount) onActiveCount(activeCount)
+        if (onActiveCountRef.current) onActiveCountRef.current(activeCount)
 
         const prevActive = prevActiveCountRef.current
         prevActiveCountRef.current = activeCount
@@ -87,7 +94,7 @@ export function JobList({ refreshKey = 0, onJobClick, onJobRetry, onJobReRun, on
         setError('Не удалось загрузить задачи')
       }
     }
-  }, [onActiveCount])
+  }, []) // no dependencies — onActiveCount accessed via ref
 
   useEffect(() => {
     mountedRef.current = true

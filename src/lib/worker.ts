@@ -55,6 +55,15 @@ async function processNextJob(): Promise<void> {
       log(`downloading ${queued.id}`)
       db.prepare('UPDATE jobs SET status = ?, updated_at = ? WHERE id = ?').run('downloading', t, queued.id)
       try {
+        const updateProgress = db.prepare('UPDATE jobs SET progress = ?, updated_at = ? WHERE id = ?')
+        const updateProgressDetail = db.prepare(
+          `UPDATE jobs SET progress = ?, progress_downloaded = ?, progress_total = ?,
+           progress_speed = ?, progress_eta = ?, updated_at = ? WHERE id = ?`,
+        )
+        const updateStage = db.prepare(
+          "UPDATE jobs SET current_stage = ?, status = ?, updated_at = ? WHERE id = ?",
+        )
+
         const result = await downloadFile({
           url: queued.url,
           jobId: queued.id,
@@ -62,21 +71,19 @@ async function processNextJob(): Promise<void> {
           mode: queued.mode ?? 'video',
           formatId: queued.format_id ?? undefined,
           onProgress: (pct) => {
-            db.prepare('UPDATE jobs SET progress = ?, updated_at = ? WHERE id = ?').run(pct, t, queued.id)
+            updateProgress.run(pct, now(), queued.id)
           },
           onProgressDetail: (detail) => {
-            db.prepare(
-              `UPDATE jobs SET progress = ?, progress_downloaded = ?, progress_total = ?,
-               progress_speed = ?, progress_eta = ?, updated_at = ? WHERE id = ?`,
-            ).run(
+            updateProgressDetail.run(
               detail.percent, detail.downloadedBytes, detail.totalBytes,
-              detail.speed, detail.etaSeconds, t, queued.id,
+              detail.speed, detail.etaSeconds, now(), queued.id,
             )
           },
           onStageChange: (stage) => {
-            db.prepare(
-              "UPDATE jobs SET current_stage = ?, status = ?, updated_at = ? WHERE id = ?",
-            ).run(stage, stage === 'muxing' ? 'muxing' : queued.status, t, queued.id)
+            updateStage.run(
+              stage, stage === 'muxing' ? 'muxing' : 'downloading',
+              now(), queued.id,
+            )
           },
         })
 

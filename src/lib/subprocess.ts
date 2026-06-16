@@ -76,6 +76,7 @@ export async function runSubprocess(options: SubprocessOptions): Promise<Subproc
     })
 
     proc.on('close', (exitCode) => {
+      stderr += stderrBuffer
       resolve({ stdout, stderr, exitCode })
     })
   })
