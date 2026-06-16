@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     pip \
   && rm -rf /var/lib/apt/lists/*
 
-RUN pip install --break-system-packages --no-cache-dir git+https://github.com/yt-dlp/yt-dlp.git
+RUN pip install --break-system-packages --no-cache-dir --force-reinstall git+https://github.com/yt-dlp/yt-dlp.git
 
 # ============================================================
 # deps: production node_modules
