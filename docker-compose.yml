@@ -1,7 +1,4 @@
 services:
-  # ============================================================
-  # YouBox — приватный загрузчик видео/аудио
-  # ============================================================
   youbox:
     build:
       context: .
@@ -11,7 +8,7 @@ services:
     restart: unless-stopped
 
     ports:
-      - "${PORT:-3007}:3007"
+      - "127.0.0.1:3007:3007"
 
     env_file: .env
 
@@ -45,28 +42,21 @@ services:
         max-file: "3"
 
     networks:
-      - youbox_network
+      - youbox_internal
+      - traefik
 
-  # ============================================================
-  # Caddy — reverse proxy с автоматическим HTTPS (опционально)
-  # Раскомментируйте для продакшена с доменом
-  # ============================================================
-  # caddy:
-  #   image: caddy:2-alpine
-  #   container_name: youbox-caddy
-  #   restart: unless-stopped
-  #   ports:
-  #     - "80:80"
-  #     - "443:443"
-  #   volumes:
-  #     - ./Caddyfile:/etc/caddy/Caddyfile:ro
-  #     - caddy_data:/data
-  #     - caddy_config:/config
-  #   networks:
-  #     - youbox_network
-  #   depends_on:
-  #     - youbox
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=${TRAEFIK_NETWORK}"
+      - "traefik.http.routers.youbox.rule=Host(`${YOUBOX_HOST}`)"
+      - "traefik.http.routers.youbox.tls=true"
+      - "traefik.http.routers.youbox.entrypoints=${TRAEFIK_ENTRYPOINTS}"
+      - "traefik.http.routers.youbox.tls.certresolver=${TRAEFIK_CERTRESOLVER}"
+      - "traefik.http.services.youbox.loadbalancer.server.port=3007"
 
 networks:
-  youbox_network:
+  youbox_internal:
     driver: bridge
+  traefik:
+    name: ${TRAEFIK_NETWORK}
+    external: true

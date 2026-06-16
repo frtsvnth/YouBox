@@ -22,6 +22,7 @@ export const env = {
   SESSION_TTL: intEnv('SESSION_TTL', 86400),
   FILE_TTL: intEnv('FILE_TTL', 7200),
   PORT: intEnv('PORT', 3007),
+  APP_BASE_URL: process.env.APP_BASE_URL ?? null,
   LOG_LEVEL: process.env.LOG_LEVEL ?? 'info',
   YT_COOKIES_FILE: process.env.YT_COOKIES_FILE ?? null,
   PLAYLIST_MAX_ITEMS: intEnv('PLAYLIST_MAX_ITEMS', 10),

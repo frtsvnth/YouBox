@@ -56,7 +56,14 @@ case "${1:-deploy}" in
 
     echo "[deploy] Checking health..."
     sleep 5
-    HEALTH=$(docker compose -f "$COMPOSE_FILE" exec -T youbox wget -q -O - http://localhost:3007/api/health 2>/dev/null || echo '{"status":"unknown"}')
+    HEALTH=$(docker compose -f "$COMPOSE_FILE" exec -T youbox node -e "
+const http = require('http');
+http.get('http://localhost:3007/api/health', (res) => {
+  let d = '';
+  res.on('data', c => d += c);
+  res.on('end', () => { try { console.log(JSON.parse(d).status); } catch { console.log('unknown'); } });
+}).on('error', () => console.log('unknown'));
+" 2>/dev/null || echo 'unknown')
     echo "[deploy] Health: $(echo $HEALTH | python3 -c 'import sys,json; print(json.load(sys.stdin).get("status","unknown"))' 2>/dev/null || echo 'unknown')"
     echo "[deploy] Done! YouBox is running."
     docker compose -f "$COMPOSE_FILE" ps
