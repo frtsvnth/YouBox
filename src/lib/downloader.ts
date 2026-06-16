@@ -37,7 +37,7 @@ function formatArgs(format: OutputFormat): string[] {
       return ['-f', 'bestvideo[ext=webm]+bestaudio[ext=webm]/best[ext=webm]', '--merge-output-format', 'webm']
     case 'mp4':
     default:
-      return ['-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best', '--merge-output-format', 'mp4']
+      return ['-f', 'bestvideo+bestaudio/best', '--merge-output-format', 'mp4']
   }
 }
 
