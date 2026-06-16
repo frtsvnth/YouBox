@@ -28,7 +28,6 @@ services:
     cap_drop:
       - ALL
 
-    read_only: true
     tmpfs:
       - /tmp
 
