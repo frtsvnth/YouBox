@@ -10,9 +10,17 @@ const SENSITIVE_FLAGS = new Set(['--cookies'])
 
 const JS_RT_ARGS = ['--js-runtimes', 'node', '--remote-components', 'ejs:github']
 
+const COOKIES_TMP = '/tmp/youbox-cookies.txt'
+
 function cookiesArgs(): string[] {
   if (env.YT_COOKIES_FILE && fs.existsSync(env.YT_COOKIES_FILE)) {
-    return ['--cookies', env.YT_COOKIES_FILE]
+    try {
+      fs.copyFileSync(env.YT_COOKIES_FILE, COOKIES_TMP)
+      fs.chmodSync(COOKIES_TMP, 0o666)
+    } catch {
+      return ['--cookies', env.YT_COOKIES_FILE]
+    }
+    return ['--cookies', COOKIES_TMP]
   }
   return []
 }
