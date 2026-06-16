@@ -49,10 +49,15 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY healthcheck.sh /healthcheck.sh
 RUN chmod +x /healthcheck.sh
 
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 RUN mkdir -p /data/db /data/downloads /data/tmp && \
     chown -R youbox:youbox /data
 
-USER youbox
+USER root
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["node", "server.js"]
 
 EXPOSE 3007
 
