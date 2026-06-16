@@ -5,6 +5,7 @@ import { getFileSize } from './muxer'
 import { cleanupExpiredFiles, cleanupStaleJobs } from './cleanup'
 import { cleanupExpiredSessions } from './auth'
 import { YtDlpError } from './errors'
+import { pushLog } from './logger'
 import path from 'node:path'
 import type { Job } from '@/types'
 
@@ -13,9 +14,11 @@ let isProcessing = false
 const LOG_PREFIX = '[worker]'
 
 function log(...args: unknown[]) {
+  const msg = args.map(a => String(a)).join(' ')
   if (env.LOG_LEVEL === 'debug' || env.LOG_LEVEL === 'info') {
-    console.log(LOG_PREFIX, ...args)
+    console.log(LOG_PREFIX, msg)
   }
+  pushLog('info', 'worker', msg)
 }
 
 function now(): number {

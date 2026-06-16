@@ -17,6 +17,12 @@ const STATUS_CONFIG: Record<string, { label: string; variant: 'default' | 'succe
   expired: { label: 'Истекло', variant: 'neutral' },
 }
 
+const STAGE_LABELS: Record<string, string> = {
+  extracting: 'Извлечение информации…',
+  downloading: 'Скачивание…',
+  muxing: 'Обработка аудио…',
+}
+
 function formatSize(bytes: number | null): string {
   if (bytes === null || bytes === 0) return '—'
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
@@ -51,11 +57,12 @@ interface Props {
   open: boolean
   onClose: () => void
   onCancel?: (id: string) => void
+  onDelete?: (id: string) => void
   onRetry?: (id: string) => void
   onReRun?: (job: Job) => void
 }
 
-export function JobDetailsDrawer({ job, open, onClose, onCancel, onRetry, onReRun }: Props) {
+export function JobDetailsDrawer({ job, open, onClose, onCancel, onDelete, onRetry, onReRun }: Props) {
   if (!job) return null
   const j = job
 
@@ -91,8 +98,9 @@ export function JobDetailsDrawer({ job, open, onClose, onCancel, onRetry, onReRu
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-xs text-text-secondary">
                 {j.status === 'extracting' ? 'Получение информации…' :
-                 j.status === 'muxing' ? 'Обработка…' :
-                 indeterminate ? 'Подготовка…' : 'Скачивание…'}
+                 STAGE_LABELS[j.current_stage] ||
+                 (j.status === 'muxing' ? 'Обработка…' :
+                  indeterminate ? 'Подготовка…' : 'Скачивание…')}
               </span>
               {!indeterminate && (
                 <span className="text-xs text-text-tertiary tabular-nums">{Math.round(j.progress)}%</span>
@@ -121,6 +129,9 @@ export function JobDetailsDrawer({ job, open, onClose, onCancel, onRetry, onReRu
         <div className="grid grid-cols-2 gap-3">
           <InfoRow label="Формат" value={j.format?.toUpperCase() || '—'} />
           <InfoRow label="Размер" value={formatSize(j.filesize)} />
+          {j.current_stage && ['downloading', 'muxing'].includes(j.status) && (
+            <InfoRow label="Стадия" value={STAGE_LABELS[j.current_stage] || j.current_stage} />
+          )}
           {j.playlist_size && j.playlist_size > 1 && (
             <InfoRow label="Позиция в плейлисте" value={`${j.playlist_index || 1} / ${j.playlist_size}`} />
           )}
@@ -160,6 +171,11 @@ export function JobDetailsDrawer({ job, open, onClose, onCancel, onRetry, onReRu
           {j.status === 'ready' && onReRun && (
             <Button variant="secondary" size="md" onClick={() => onReRun(j)}>
               Запустить снова
+            </Button>
+          )}
+          {onDelete && j.status !== 'downloading' && j.status !== 'muxing' && (
+            <Button variant="danger" size="md" onClick={() => onDelete(j.id)}>
+              Удалить
             </Button>
           )}
         </div>

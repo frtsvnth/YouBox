@@ -14,14 +14,14 @@ interface Props {
   onActiveCount?: (count: number) => void
 }
 
-type Section = 'active' | 'attention' | 'ready'
+type Section = 'ready' | 'active' | 'attention'
 
-const SECTION_ORDER: Section[] = ['active', 'attention', 'ready']
+const SECTION_ORDER: Section[] = ['ready', 'active', 'attention']
 
 const SECTION_CONFIG: Record<Section, { label: string; desc: string }> = {
+  ready: { label: 'Готово', desc: 'Можно скачать' },
   active: { label: 'Активные', desc: 'Задачи в работе' },
   attention: { label: 'Требуют внимания', desc: 'Завершились с ошибкой' },
-  ready: { label: 'Готово', desc: 'Можно скачать' },
 }
 
 function groupJobs(jobs: Job[]): Record<Section, Job[]> {
@@ -114,6 +114,13 @@ export function JobList({ refreshKey = 0, onJobClick, onJobRetry, onJobReRun, on
     } catch { /* silent */ }
   }
 
+  async function handleDelete(id: string) {
+    try {
+      await fetch(`/api/jobs/${id}/delete`, { method: 'POST' })
+      fetchJobs()
+    } catch { /* silent */ }
+  }
+
   if (error) {
     return (
       <EmptyState
@@ -177,7 +184,9 @@ export function JobList({ refreshKey = 0, onJobClick, onJobRetry, onJobReRun, on
                 <JobCard
                   key={job.id}
                   job={job}
+                  fresh={job.status === 'ready' && job.ready_at !== null && (Date.now() / 1000 - job.ready_at) < 30}
                   onCancel={handleCancel}
+                  onDelete={handleDelete}
                   onClick={onJobClick}
                   onRetry={onJobRetry}
                   onReRun={onJobReRun}

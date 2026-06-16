@@ -11,11 +11,12 @@ interface Props {
   open: boolean
   onClose: () => void
   onJobClick?: (job: Job) => void
+  onJobDelete?: (id: string) => void
   onJobReRun?: (job: Job) => void
   onJobRetry?: (id: string) => void
 }
 
-export function HistoryPanel({ open, onClose, onJobClick, onJobReRun, onJobRetry }: Props) {
+export function HistoryPanel({ open, onClose, onJobClick, onJobDelete, onJobReRun, onJobRetry }: Props) {
   const [jobs, setJobs] = useState<Job[]>([])
   const [loading, setLoading] = useState(false)
   const mountedRef = useRef(true)
@@ -74,7 +75,7 @@ export function HistoryPanel({ open, onClose, onJobClick, onJobReRun, onJobRetry
               </h3>
               <div className="flex flex-col gap-1.5">
                 {other.map((job) => (
-                  <JobCard key={job.id} job={job} onClick={onJobClick} compact />
+                  <JobCard key={job.id} job={job} onClick={onJobClick} onDelete={onJobDelete} compact />
                 ))}
               </div>
             </section>
@@ -86,7 +87,7 @@ export function HistoryPanel({ open, onClose, onJobClick, onJobReRun, onJobRetry
               </h3>
               <div className="flex flex-col gap-1.5">
                 {ready.map((job) => (
-                  <JobCard key={job.id} job={job} onClick={onJobClick} onReRun={onJobReRun} compact />
+                  <JobCard key={job.id} job={job} onClick={onJobClick} onReRun={onJobReRun} onDelete={onJobDelete} compact />
                 ))}
               </div>
             </section>
@@ -98,7 +99,7 @@ export function HistoryPanel({ open, onClose, onJobClick, onJobReRun, onJobRetry
               </h3>
               <div className="flex flex-col gap-1.5">
                 {failed.map((job) => (
-                  <JobCard key={job.id} job={job} onClick={onJobClick} onRetry={onJobRetry} compact />
+                  <JobCard key={job.id} job={job} onClick={onJobClick} onRetry={onJobRetry} onDelete={onJobDelete} compact />
                 ))}
               </div>
             </section>
@@ -110,7 +111,7 @@ export function HistoryPanel({ open, onClose, onJobClick, onJobReRun, onJobRetry
               </h3>
               <div className="flex flex-col gap-1.5">
                 {expired.map((job) => (
-                  <JobCard key={job.id} job={job} onClick={onJobClick} compact />
+                  <JobCard key={job.id} job={job} onClick={onJobClick} onDelete={onJobDelete} compact />
                 ))}
               </div>
             </section>

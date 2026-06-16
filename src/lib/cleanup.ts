@@ -1,5 +1,6 @@
 import { getDb } from './db'
 import { env } from './env'
+import { pushLog } from './logger'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -21,6 +22,8 @@ export function cleanupExpiredFiles(): number {
     db.prepare('UPDATE jobs SET status = ?, updated_at = ? WHERE id = ?').run('expired', now, job.id)
     count++
   }
+
+  if (count > 0) pushLog('info', 'cleanup', `просрочено ${count} файлов`)
 
   return count
 }
@@ -46,6 +49,8 @@ export function cleanupStaleJobs(): number {
       job.id
     )
   }
+
+  if (stale.length > 0) pushLog('warn', 'cleanup', `зависших задач: ${stale.length}`)
 
   return stale.length
 }

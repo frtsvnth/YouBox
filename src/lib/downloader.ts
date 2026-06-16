@@ -1,6 +1,7 @@
 import { runSubprocess, buildArgs } from './subprocess'
 import { env } from './env'
 import { YtDlpError, mapYtDlpError, BinaryNotFoundError } from './errors'
+import { pushLog } from './logger'
 import fs from 'node:fs'
 import path from 'node:path'
 import type { ExtractedMetadata, FormatInfo, ExtractedEntry, OutputFormat, DownloadMode } from '@/types'
@@ -109,6 +110,7 @@ function parsePlaylistInfo(raw: Record<string, unknown>, originalUrl: string): E
 }
 
 export async function extractMetadata(url: string): Promise<ExtractedMetadata> {
+  pushLog('info', 'yt-dlp', `извлечение метаданных: ${url}`)
   const args = buildArgs(
     ['--dump-json', '--no-download', '--no-warnings', '--ignore-errors'],
     {},
@@ -210,6 +212,8 @@ export async function downloadFile(options: DownloadOptions): Promise<DownloadRe
 
   const sensitiveIndices = findSensitiveIndices(args)
 
+  pushLog('info', 'yt-dlp', `скачивание ${jobId}: ${url} (${format})`)
+
   let result
   try {
     result = await runSubprocess({
@@ -218,10 +222,14 @@ export async function downloadFile(options: DownloadOptions): Promise<DownloadRe
       timeout: 600_000,
       sensitiveArgIndices: sensitiveIndices,
       onStderrLine: (line) => {
+        if (line.includes('[youtube]') || line.includes('[info]') || line.includes('ERROR')) {
+          pushLog('debug', 'yt-dlp', `${jobId}: ${line}`)
+        }
         parseProgressLine(line, onProgress, onProgressDetail, onStageChange)
       },
     })
   } catch (err) {
+    pushLog('error', 'yt-dlp', `ошибка ${jobId}: ${err instanceof Error ? err.message : String(err)}`)
     if (err instanceof Error && err.message.includes('binary not found')) {
       throw new BinaryNotFoundError('yt-dlp')
     }
@@ -229,8 +237,11 @@ export async function downloadFile(options: DownloadOptions): Promise<DownloadRe
   }
 
   if (result.exitCode !== 0) {
+    pushLog('error', 'yt-dlp', `exit code ${result.exitCode} для ${jobId}: ${result.stderr.slice(0, 200)}`)
     throw new YtDlpError(result.stderr, mapYtDlpError(result.stderr), result.stderr)
   }
+
+  pushLog('info', 'yt-dlp', `завершено ${jobId}`)
 
   const downloadPath = parseDownloadPath(result.stderr, tmpDir)
   if (!downloadPath) {

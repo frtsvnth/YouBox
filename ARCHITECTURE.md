@@ -76,13 +76,14 @@
 
 ## 2. Модель данных
 
-### Схема SQLite (v3)
+### Схема SQLite (v4)
 
 ```sql
 -- Миграции через user_version pragma
 -- v1: базовая схема
 -- v2: login_attempts, mode, playlist_index, playlist_size
 -- v3: format_id
+-- v4: progress_downloaded, progress_total, progress_speed, progress_eta, current_stage
 
 -- Таблица сессий
 CREATE TABLE sessions (
@@ -110,7 +111,12 @@ CREATE TABLE jobs (
   expires_at    INTEGER,
   playlist_index INTEGER,
   playlist_size  INTEGER,
-  format_id     TEXT                                  -- выбранный формат из списка
+  format_id     TEXT,                                 -- выбранный формат из списка
+  progress_downloaded INTEGER,                        -- скачано байт
+  progress_total      INTEGER,                        -- всего байт
+  progress_speed      REAL,                           -- скорость (байт/с)
+  progress_eta        INTEGER,                        -- ETA (секунд)
+  current_stage       TEXT DEFAULT ''                 -- текущая стадия (extracting/downloading/muxing)
 );
 
 CREATE INDEX idx_jobs_status ON jobs(status);
@@ -211,9 +217,20 @@ interface FormatInfo {
 ### POST /api/jobs/:id/cancel
 Ответ 200: `{ ok: true }` (только для queued/downloading)
 
+### POST /api/jobs/:id/retry
+Ответ 200: `{ ok: true }` (только для failed/expired)
+
+### POST /api/jobs/:id/delete
+Ответ 200: `{ ok: true }` (удаление записи из БД + файлов tmp/downloads)
+
 ### GET /api/download/:id
 Ответ 200: Файловый поток с Content-Disposition (UTF-8 filename encoding)
 Ответ 404: `{ error, code: "NOT_FOUND" }` или `{ error, code: "FILE_NOT_FOUND" }`
+
+### GET /api/logs?after=N
+Ответ 200: `{ logs: LogEntry[], total: number, nextId: number }` (порционный polling)
+### POST /api/logs
+Ответ 200: `{ ok: true }` (очистка буфера логов)
 
 ### GET /api/health (публичный)
 Ответ 200: `{ status: "ok"|"degraded", app, ytDlp, ffmpeg, cookiesFile, database }`
@@ -324,8 +341,11 @@ youbox/
 │   │   │   ├── jobs/
 │   │   │   │   ├── route.ts
 │   │   │   │   ├── [id]/route.ts
-│   │   │   │   └── [id]/cancel/route.ts
+│   │   │   │   ├── [id]/cancel/route.ts
+│   │   │   │   ├── [id]/retry/route.ts
+│   │   │   │   └── [id]/delete/route.ts
 │   │   │   ├── download/[id]/route.ts
+│   │   │   ├── logs/route.ts
 │   │   │   ├── health/route.ts
 │   │   │   └── cleanup/route.ts
 │   │   └── layout.tsx
@@ -347,13 +367,14 @@ youbox/
 │   │   ├── JobCard.tsx            # Карточка задачи
 │   │   ├── JobDetailsDrawer.tsx   # Drawer деталей
 │   │   ├── JobList.tsx            # Polling-список
+│   │   ├── LogPanel.tsx           # Drawer логов
 │   │   ├── LoginForm.tsx          # Форма входа
 │   │   ├── PinInput.tsx           # 6 полей PIN
 │   │   ├── PlaylistConfirmDialog.tsx
 │   │   ├── ThemeToggle.tsx        # dark/light
 │   │   └── URLBar.tsx             # URL input
 │   ├── lib/
-│   │   ├── db.ts           # SQLite + миграции (v1-v3)
+│   │   ├── db.ts           # SQLite + миграции (v1-v4)
 │   │   ├── auth.ts         # APP_PIN_HASH, сессии, timingSafeEqual
 │   │   ├── lockout.ts      # Lockout после неудачных попыток
 │   │   ├── worker.ts       # Фоновый воркер
@@ -361,6 +382,7 @@ youbox/
 │   │   ├── muxer.ts        # ffmpeg обёртка
 │   │   ├── cleanup.ts      # Очистка файлов по TTL
 │   │   ├── errors.ts       # Типизированные ошибки + user-friendly messages
+│   │   ├── logger.ts       # In-memory кольцевой буфер логов (globalThis)
 │   │   ├── subprocess.ts   # Безопасный subprocess adapter
 │   │   ├── rate-limit.ts   # In-memory rate limiter
 │   │   ├── health.ts       # Health check service

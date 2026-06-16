@@ -18,7 +18,7 @@ export default function LoginPage() {
                 </svg>
               </div>
             </div>
-            <h1 className="text-xl font-semibold text-text-primary">YouBox</h1>
+            <h1 className="text-xl font-semibold text-text-primary">YouBox - только для своих</h1>
             <p className="text-sm text-text-tertiary mt-1">Введите PIN для входа</p>
           </div>
           <LoginForm />

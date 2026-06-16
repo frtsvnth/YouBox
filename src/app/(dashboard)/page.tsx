@@ -8,6 +8,7 @@ import { ContentCard } from '@/components/ContentCard'
 import { JobList } from '@/components/JobList'
 import { JobDetailsDrawer } from '@/components/JobDetailsDrawer'
 import { HistoryPanel } from '@/components/HistoryPanel'
+import { LogPanel } from '@/components/LogPanel'
 import { PlaylistConfirmDialog } from '@/components/PlaylistConfirmDialog'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -37,6 +38,7 @@ export default function DashboardPage() {
   const [creatingJob, setCreatingJob] = useState(false)
 
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [logsOpen, setLogsOpen] = useState(false)
   const [selectedJob, setSelectedJob] = useState<Job | null>(null)
   const [detailsOpen, setDetailsOpen] = useState(false)
 
@@ -160,6 +162,15 @@ export default function DashboardPage() {
     } catch { /* silent */ }
   }
 
+  const handleJobDelete = useCallback(async (id: string) => {
+    try {
+      await fetch(`/api/jobs/${id}/delete`, { method: 'POST' })
+      setRefreshKey((k) => k + 1)
+      setSelectedJob(null)
+      setDetailsOpen(false)
+    } catch { /* silent */ }
+  }, [])
+
   return (
     <ThemeProvider>
       <div className="flex flex-col min-h-screen">
@@ -173,10 +184,20 @@ export default function DashboardPage() {
                   <path d="M9 9l2 2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
                 </svg>
               </div>
-              <span className="text-sm font-semibold text-text-primary">YouBox</span>
+              <span className="text-sm font-semibold text-text-primary">YouBox - только для своих</span>
             </div>
             <div className="flex items-center gap-0.5">
               <ThemeToggle />
+              <button
+                onClick={() => setLogsOpen(true)}
+                className="p-2 text-text-tertiary hover:text-text-primary rounded-lg hover:bg-card-hover transition-colors"
+                aria-label="Логи"
+                title="Логи"
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M2 4h12M2 8h12M2 12h8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+                </svg>
+              </button>
               <button
                 onClick={() => setHistoryOpen(true)}
                 className="p-2 text-text-tertiary hover:text-text-primary rounded-lg hover:bg-card-hover transition-colors relative"
@@ -288,6 +309,7 @@ export default function DashboardPage() {
           open={detailsOpen}
           onClose={() => setDetailsOpen(false)}
           onCancel={handleCancel}
+          onDelete={handleJobDelete}
           onRetry={handleJobRetry}
           onReRun={handleJobReRun}
         />
@@ -296,8 +318,14 @@ export default function DashboardPage() {
           open={historyOpen}
           onClose={() => setHistoryOpen(false)}
           onJobClick={handleJobClick}
+          onJobDelete={handleJobDelete}
           onJobReRun={handleJobReRun}
           onJobRetry={handleJobRetry}
+        />
+
+        <LogPanel
+          open={logsOpen}
+          onClose={() => setLogsOpen(false)}
         />
       </div>
     </ThemeProvider>

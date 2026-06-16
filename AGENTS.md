@@ -54,7 +54,7 @@ LOG_LEVEL=info             # debug | info | warn | error
 ```
 src/
 ├── app/
-│   ├── globals.css                    # Дизайн-система: theme tokens, dark/light
+│   ├── globals.css                    # Дизайн-система: theme tokens, dark/light, анимации (indeterminate, fresh-ready)
 │   ├── layout.tsx                     # Root layout
 │   ├── (auth)/login/page.tsx          # Страница входа (client, ThemeProvider)
 │   ├── (dashboard)/
@@ -68,8 +68,11 @@ src/
 │   ├── api/jobs/
 │   │   ├── route.ts                   # GET/POST /api/jobs
 │   │   ├── [id]/route.ts              # GET /api/jobs/:id
-│   │   └── [id]/cancel/route.ts       # POST /api/jobs/:id/cancel
+│   │   ├── [id]/cancel/route.ts       # POST /api/jobs/:id/cancel
+│   │   ├── [id]/retry/route.ts        # POST /api/jobs/:id/retry
+│   │   └── [id]/delete/route.ts       # POST /api/jobs/:id/delete
 │   ├── api/download/[id]/route.ts     # GET /api/download/:id
+│   ├── api/logs/route.ts              # GET /api/logs?after=N, POST (clear)
 │   ├── api/health/route.ts            # GET /api/health (публичный)
 │   └── api/cleanup/route.ts           # POST /api/cleanup
 ├── components/
@@ -87,16 +90,17 @@ src/
 │   ├── ConfirmDialog.tsx              # Модальное подтверждение
 │   ├── FormatTable.tsx                # Таблица форматов с выбором
 │   ├── HistoryPanel.tsx               # Drawer истории задач
-│   ├── JobCard.tsx                    # Карточка задачи: статус, прогресс, действия
-│   ├── JobDetailsDrawer.tsx           # Drawer деталей задачи
-│   ├── JobList.tsx                    # Polling-список активных задач
+│   ├── JobCard.tsx                    # Карточка задачи: статус, прогресс (стадия/процент/скорость/ETA/объём), fresh-подсветка
+│   ├── JobDetailsDrawer.tsx           # Drawer деталей задачи: STAGE_LABELS, InfoRow для стадии, прогресс-блок
+│   ├── JobList.tsx                    # Polling-список задач: секции Готово → Активные → Требуют внимания, fresh-проп
+│   ├── LogPanel.tsx                   # Drawer логов: polling 1.5с, auto-scroll, уровни debug/info/warn/error
 │   ├── LoginForm.tsx                  # Форма входа с PinInput
 │   ├── PinInput.tsx                   # 6-символьный PIN input (отдельные поля)
 │   ├── PlaylistConfirmDialog.tsx      # Подтверждение большого плейлиста
 │   ├── ThemeToggle.tsx                # Переключатель dark/light
 │   └── URLBar.tsx                     # URL input + "Показать варианты"
 ├── lib/
-│   ├── db.ts          # SQLite + миграции (v1-v3)
+│   ├── db.ts          # SQLite + миграции (v1-v4)
 │   ├── auth.ts        # APP_PIN_HASH, сессии, timingSafeEqual
 │   ├── worker.ts      # Фоновый воркер (setInterval, 3с)
 │   ├── downloader.ts  # yt-dlp: extract + download + playlist + cookies
@@ -106,6 +110,7 @@ src/
 │   ├── lockout.ts     # Блокировка после N неудачных попыток
 │   ├── health.ts      # Health check (yt-dlp, ffmpeg, БД, cookies)
 │   ├── errors.ts      # Типизированные ошибки с user-friendly сообщениями
+│   ├── logger.ts      # In-memory кольцевой буфер логов (globalThis)
 │   ├── subprocess.ts  # Безопасный subprocess adapter (shell: false)
 │   ├── env.ts         # Валидация ENV
 │   └── theme-context.tsx # React Context для dark/light темы
@@ -122,22 +127,35 @@ src/
 - **Session auth**: HTTP-only cookie, ID сессии в SQLite
 - **APP_PIN_HASH**: В ENV кладётся готовый SHA-256 хеш, plaintext PIN нигде не хранится
 - **Lockout**: После LOGIN_MAX_ATTEMPTS неудачных попыток — блокировка на LOGIN_LOCKOUT_DURATION секунд
+- **Расшифровка:** Notifications: Всё, что есть. Сейчас это не важно. Это просто пример.
+  - **Важно:** Дайте мне знать, если я неправильно прочитал или понял ваш запрос. Я всегда готов помочь.
+
 - **subprocess.ts**: Единый безопасный adapter, shell: false, чувствительные аргументы не логируются
 - **errors.ts**: Иерархия AppError → ValidationError / AuthError / YtDlpError / RateLimitError / LockoutError. mapYtDlpError мапит stderr в user-friendly русские сообщения
-- **Миграции**: user_version pragma, три версии (v1: schema, v2: login_attempts+mode, v3: format_id)
+- **Миграции**: user_version pragma, четыре версии (v1: schema, v2: login_attempts+mode, v3: format_id, v4: progress_downloaded/progress_total/progress_speed/progress_eta/current_stage)
 - **Хранение файлов**: /data/downloads для готовых, /data/tmp для временных
+- **Логирование**: In-memory кольцевой буфер (500 записей) на globalThis — общий для всех модулей Next.js. pushLog/getLogs/clearLogs. GET /api/logs?after=N для polling, POST /api/logs для очистки.
+- **Удаление задач**: POST /api/jobs/:id/delete — удаляет запись из БД + чистит tmp и download файлы. Кнопка удаления на JobCard и в JobDetailsDrawer.
 
 ### UI / Дизайн-система
 - **Тёмная и светлая тема**: CSS-переменные, переключение через `ThemeContext` + localStorage, класс `.dark`/`.light` на `<html>`
 - **Акцентный цвет**: emerald (#10b981) — спокойный зелёный, без фиолетовых градиентов
 - **Примитивы в `components/ui/`**: Button, Input, Card, Badge, ProgressBar, Drawer, Modal, Spinner, EmptyState
 - **PIN input**: 6 отдельных полей с автопереходом, поддержка paste/backspace/стрелок
-- **Job polling**: Обновление списка задач каждые 2 секунды для active статусов
+- **Job polling**: 2-секундный опрос `/api/jobs?status=active`, фильтрация по статусу на клиенте. Секции: Готово → Активные → Требуют внимания.
+- **Прогресс задач**: JobCard показывает индикатор для статусов `downloading`/`muxing`:
+  - Стадия (`current_stage`) с русским названием через `STAGE_LABELS`: «Скачивание…», «Обработка аудио…»
+  - Процент завершения (`progress`) через `ProgressBar` (indeterminate-режим для muxing/extracting)
+  - Скорость (`progress_speed`), ETA (`progress_eta`), объём (`progress_downloaded` / `progress_total`)
+  - Поля берутся из БД (миграция v4), заполняются воркером из yt-dlp output
+- **UX: расположение готовых задач**: Секции отображаются в порядке: Готово → Активные → Требуют внимания (было: Активные → Ошибки → Готово). Готовые задачи — первыми, чтобы пользователь сразу видел доступные для скачивания файлы. Для свежих задач (`ready_at < 30 сек`) применяется `fresh`-проп с CSS-анимацией `fresh-ready` (пульсирующая зелёная box-shadow, 2 сек), привлекающая внимание к только что завершённым задачам.
 - **Пресеты форматов**: Best quality / MP4 1080p / MP4 720p / MP3 / M4A — быстрый выбор
 - **Advanced mode**: Таблица всех форматов от yt-dlp с сортировкой по размеру
 - **Плейлисты**: Подтверждение для >10 элементов, выбор: всё / первые N / только первое
-- **Drawer для деталей**: Slide-панель с полной информацией о задаче, прогрессом, действиями
+- **Drawer для деталей**: Slide-панель с полной информацией о задаче, прогрессом (стадия через `STAGE_LABELS`, процент, скорость, ETA, объём), `InfoRow` для стадии в сетке деталей
 - **История задач**: Drawer со всеми задачами, группировка по статусу, re-run
+- **Удаление задач**: Иконка корзины на JobCard (ready/failed/expired) + кнопка "Удалить" в JobDetailsDrawer. DELETE из БД + файлы с диска.
+- **Логи**: Drawer (LogPanel) с polling 1.5с. In-memory буфер на globalThis. Уровни debug/info/warn/error. Очистка по кнопке.
 
 ## Жизненный цикл задачи
 

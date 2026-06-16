@@ -57,20 +57,20 @@ function timeAgo(timestamp: number): string {
 interface Props {
   job: Job
   onCancel?: (id: string) => void
+  onDelete?: (id: string) => void
   onRetry?: (id: string) => void
   onReRun?: (job: Job) => void
   onClick?: (job: Job) => void
   compact?: boolean
+  fresh?: boolean
 }
 
-export function JobCard({ job, onCancel, onRetry, onReRun, onClick, compact }: Props) {
+export function JobCard({ job, onCancel, onDelete, onRetry, onReRun, onClick, compact, fresh }: Props) {
   const config = STATUS_CONFIG[job.status] || STATUS_CONFIG.created
 
   const isProgressing = ['downloading', 'muxing'].includes(job.status)
 
-  const showProgress = isProgressing
   const indeterminate = isProgressing && (job.progress <= 0 || (job.status === 'muxing'))
-  const hasDetail = job.progress_speed !== null || job.progress_eta !== null || (job.progress_downloaded !== null && job.progress_total !== null)
 
   const handleClick = () => {
     if (onClick) onClick(job)
@@ -86,6 +86,11 @@ export function JobCard({ job, onCancel, onRetry, onReRun, onClick, compact }: P
     if (onCancel) onCancel(job.id)
   }
 
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (onDelete) onDelete(job.id)
+  }
+
   const handleReRun = (e: React.MouseEvent) => {
     e.stopPropagation()
     if (onReRun) onReRun(job)
@@ -98,19 +103,6 @@ export function JobCard({ job, onCancel, onRetry, onReRun, onClick, compact }: P
     a.click()
   }
 
-  const progressLabel = () => {
-    if (indeterminate) {
-      return STAGE_LABELS[job.current_stage] || config.label
-    }
-    if (hasDetail) {
-      const parts: string[] = []
-      if (job.progress_speed) parts.push(formatSpeed(job.progress_speed))
-      if (job.progress_eta) parts.push(`${formatEta(job.progress_eta)}`)
-      if (parts.length > 0) return parts.join(' · ')
-    }
-    return ''
-  }
-
   return (
     <div
       onClick={handleClick}
@@ -118,7 +110,8 @@ export function JobCard({ job, onCancel, onRetry, onReRun, onClick, compact }: P
         ${onClick ? 'cursor-pointer hover:border-accent/30 hover:shadow-sm' : ''}
         ${compact ? 'px-3 py-2.5' : 'px-4 py-3'}
         ${job.status === 'ready' ? 'border-success/30 bg-success-subtle/[0.03]' : 'border-border'}
-        ${job.status === 'failed' ? 'border-error/30 bg-error-subtle/[0.03]' : ''}`}
+        ${job.status === 'failed' ? 'border-error/30 bg-error-subtle/[0.03]' : ''}
+        ${fresh ? 'animate-fresh-ready' : ''}`}
     >
       <div className="flex items-start gap-3">
         <div className="flex-1 min-w-0">
@@ -144,14 +137,35 @@ export function JobCard({ job, onCancel, onRetry, onReRun, onClick, compact }: P
             <span>{timeAgo(job.created_at)}</span>
           </div>
 
-          {showProgress && (
-            <div className="mt-2">
-              <ProgressBar
-                value={job.progress}
-                indeterminate={indeterminate}
-                label={progressLabel()}
-                showPercent={!indeterminate}
-              />
+          {isProgressing && (
+            <div className="mt-2 space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-text-secondary">
+                  {STAGE_LABELS[job.current_stage] || config.label}
+                </span>
+                {!indeterminate && (
+                  <span className="text-xs text-text-tertiary tabular-nums">
+                    {Math.round(job.progress)}%
+                  </span>
+                )}
+              </div>
+              <ProgressBar value={job.progress} indeterminate={indeterminate} />
+              {(job.progress_speed !== null || job.progress_eta !== null || (job.progress_downloaded !== null && job.progress_total !== null)) && (
+                <div className="flex items-center gap-1.5 flex-wrap text-[11px] text-text-tertiary">
+                  {job.progress_speed !== null && job.progress_speed > 0 && (
+                    <span>{formatSpeed(job.progress_speed)}</span>
+                  )}
+                  {job.progress_eta !== null && job.progress_eta > 0 && (
+                    <span>· ETA {formatEta(job.progress_eta)}</span>
+                  )}
+                  {job.progress_downloaded !== null && (
+                    <span>
+                      · {formatSize(job.progress_downloaded)}
+                      {job.progress_total !== null && job.progress_total > 0 && ` / ${formatSize(job.progress_total)}`}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -216,6 +230,18 @@ export function JobCard({ job, onCancel, onRetry, onReRun, onClick, compact }: P
             >
               <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
                 <path d="M4 4l7 7M11 4l-7 7" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+              </svg>
+            </button>
+          )}
+          {onDelete && !['queued', 'downloading', 'extracting'].includes(job.status) && (
+            <button
+              onClick={handleDelete}
+              className="p-1.5 text-text-tertiary hover:text-error rounded-md transition-colors"
+              aria-label="Удалить"
+              title="Удалить"
+            >
+              <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+                <path d="M3 4h9M5.5 4V2.5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1V4M6 7v4M9 7v4M2.5 4l1 8.5a1 1 0 0 0 1 .5h6a1 1 0 0 0 1-.5l1-8.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </button>
           )}

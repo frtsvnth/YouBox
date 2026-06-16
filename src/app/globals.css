@@ -8,6 +8,12 @@
   100% { transform: translateX(400%); }
 }
 
+@keyframes fresh-ready {
+  0% { box-shadow: 0 0 0 0 var(--color-success); }
+  40% { box-shadow: 0 0 0 4px var(--color-success-subtle); }
+  100% { box-shadow: 0 0 0 0 var(--color-success); }
+}
+
 .dark {
   --color-page: #09090b;
   --color-page-alt: #18181b;
@@ -84,6 +90,7 @@
   --radius-badge: 9999px;
 
   --animate-indeterminate: indeterminate 2s ease-in-out infinite;
+  --animate-fresh-ready: fresh-ready 2s ease-out;
 }
 
 @layer base {
