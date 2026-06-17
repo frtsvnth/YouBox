@@ -91,6 +91,7 @@ export interface HealthStatus {
   ytDlp: { available: boolean; version: string | null }
   ffmpeg: { available: boolean; version: string | null }
   cookiesFile: { available: boolean; path: string | null }
+  cookieSource: { type: string; status: string; validatedAt: number | null } | null
   database: { available: boolean; jobCount: number }
 }
 
@@ -115,4 +116,39 @@ export interface ApiError {
   error: string
   code?: string
   details?: string
+}
+
+// === Cookie Source Management ===
+
+export type CookieSourceType = 'uploaded_file' | 'browser_session'
+
+export type CookieSourceStatus = 'active' | 'missing' | 'stale' | 'invalid' | 'disabled'
+
+export interface CookieSource {
+  id: string
+  source_type: CookieSourceType
+  status: CookieSourceStatus
+  file_path: string | null
+  uploaded_at: number | null
+  validated_at: number | null
+  exported_at: number | null
+  error_message: string | null
+  notes: string | null
+  created_at: number
+  updated_at: number
+}
+
+export interface CookieSourceSummary {
+  activeSource: CookieSource | null
+  allSources: CookieSource[]
+  browserEnabled: boolean
+  browserAvailable: boolean
+  browserUrl: string | null
+}
+
+export interface CookieSourceConfig {
+  activeSourceId: string | null
+  defaultSource: CookieSourceType
+  browserEnabled: boolean
+  browserServiceUrl: string | null
 }

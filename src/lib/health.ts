@@ -1,6 +1,7 @@
 import { env } from './env'
 import { getDb } from './db'
 import { runSubprocess } from './subprocess'
+import { getActiveSource } from './cookie-source'
 import fs from 'node:fs'
 import type { HealthStatus } from '@/types'
 
@@ -35,8 +36,13 @@ export async function getHealth(): Promise<HealthStatus> {
   const cookiesAvailable = cookiesConfigured && fs.existsSync(env.YT_COOKIES_FILE!)
   const cookiesFile = { available: cookiesAvailable, path: null }
 
+  const activeSource = getActiveSource()
+  const cookieSourceStatus = activeSource
+    ? { type: activeSource.source_type, status: activeSource.status, validatedAt: activeSource.validated_at }
+    : null
+
   const allOk = ytDlp.available && ffmpeg.available && dbAvailable
-  const cookiesMissing = cookiesConfigured && !cookiesAvailable
+  const cookiesMissing = cookiesConfigured && !cookiesAvailable && !activeSource
   const criticalFail = !dbAvailable
 
   return {
@@ -45,6 +51,7 @@ export async function getHealth(): Promise<HealthStatus> {
     ytDlp,
     ffmpeg,
     cookiesFile,
+    cookieSource: cookieSourceStatus,
     database: { available: dbAvailable, jobCount },
   }
 }

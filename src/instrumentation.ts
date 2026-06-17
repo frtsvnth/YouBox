@@ -3,6 +3,9 @@ export async function register() {
     const { validateEnv } = await import('@/lib/env')
     validateEnv()
 
+    const { initCookieSources } = await import('@/lib/cookie-source')
+    initCookieSources()
+
     const { startWorker } = await import('@/lib/worker')
     startWorker()
   }

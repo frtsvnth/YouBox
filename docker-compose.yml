@@ -55,9 +55,50 @@ services:
       - "traefik.http.routers.youbox.tls.certresolver=${TRAEFIK_CERTRESOLVER}"
       - "traefik.http.services.youbox.loadbalancer.server.port=3007"
 
+  youbox-browser:
+    build:
+      context: ./browser-sidecar
+      dockerfile: Dockerfile
+    image: youbox-browser:latest
+    container_name: youbox-browser
+    restart: unless-stopped
+    profiles:
+      - browser
+    ports:
+      - "127.0.0.1:3808:3808"
+    expose:
+      - "3808"
+    environment:
+      - PORT=3808
+      - BROWSER_PORT=3809
+      - PROFILE_DIR=/browser-profile
+      - EXPORT_DIR=/browser-exports
+    volumes:
+      - youbox_browser_profile:/browser-profile
+      - ./data/cookies:/browser-exports
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - SYS_ADMIN
+    tmpfs:
+      - /tmp
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - youbox_internal
+
 networks:
   youbox_internal:
     driver: bridge
   traefik:
     name: ${TRAEFIK_NETWORK}
     external: true
+
+volumes:
+  youbox_browser_profile:
+    driver: local

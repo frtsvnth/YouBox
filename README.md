@@ -21,7 +21,7 @@ npm run dev
 | Документ | О чём |
 |----------|-------|
 | [DEPLOY.md](DEPLOY.md) | Деплой на VPS за Traefik: Docker, external network, firewall |
-| [docs/COOKIES.md](docs/COOKIES.md) | Настройка и ротация cookies файла |
+| [docs/COOKIES.md](docs/COOKIES.md) | Настройка cookies: upload через UI или browser-сессия на VPS |
 | [docs/OPERATIONS.md](docs/OPERATIONS.md) | Эксплуатация: healthcheck, backup, update, откат |
 | [AGENTS.md](AGENTS.md) | Архитектура и структура проекта |
 
@@ -41,9 +41,11 @@ npm run dev
 - Фоновые задачи с прогрессом (стадия, проценты, скорость, ETA, объём)
 - История задач с повторным запуском и удалением
 - Встроенная панель логов (worker, yt-dlp, cleanup) в реальном времени
+- Панель настроек: управление источниками cookies, загрузка cookies.txt, браузерная сессия
 - Тёмная и светлая тема
 - Защита PIN-кодом + lockout от brute-force
 - Работа по HTTPS (за Traefik)
+- **Cookie Source Management**: загрузка cookies.txt через UI или браузерная сессия на VPS (Chromium sidecar)
 
 ## Переменные окружения
 
@@ -56,10 +58,14 @@ npm run dev
 | `TRAEFIK_CERTRESOLVER` | CertResolver для Let's Encrypt (по умолч. `mytlschallenge`) |
 | `APP_BASE_URL` | Базовый URL для HTTPS (опционально) |
 | `COOKIE_SECURE` | `true` для HTTPS (за Traefik), `false` для HTTP |
-| `YT_COOKIES_FILE` | Путь к cookies.txt для yt-dlp |
+| `YT_COOKIES_FILE` | Путь к cookies.txt для yt-dlp (legacy, fallback) |
 | `DATA_DIR` | Директория данных (по умолч. `./data`) |
 | `PORT` | Порт сервера (по умолч. `3007`) |
 | `LOG_LEVEL` | `debug`, `info`, `warn`, `error` |
+| `ENABLE_BROWSER_COOKIE_SOURCE` | Включить browser sidecar (`true`/`false`, по умолч. `false`) |
+| `BROWSER_COOKIE_SERVICE_URL` | URL browser sidecar (напр. `http://youbox-browser:3808`) |
+| `BROWSER_COOKIE_EXPORT_PATH` | Путь для сохранения экспортированных cookies (напр. `/data/cookies/browser-exported.txt`) |
+| `DEFAULT_COOKIE_SOURCE` | Источник по умолчанию (`uploaded_file`/`browser_session`) |
 
 ## Архитектура деплоя
 

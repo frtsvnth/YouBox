@@ -2,6 +2,7 @@ import { runSubprocess, buildArgs } from './subprocess'
 import { env } from './env'
 import { YtDlpError, mapYtDlpError, BinaryNotFoundError } from './errors'
 import { pushLog } from './logger'
+import { getResolvedCookiePath } from './cookie-source'
 import fs from 'node:fs'
 import path from 'node:path'
 import type { ExtractedMetadata, FormatInfo, ExtractedEntry, OutputFormat, DownloadMode } from '@/types'
@@ -13,10 +14,15 @@ const JS_RT_ARGS = ['--js-runtimes', 'node', '--remote-components', 'ejs:github'
 const COOKIES_TMP = '/tmp/youbox-cookies.txt'
 
 function cookiesArgs(): string[] {
+  const resolved = getResolvedCookiePath()
+  if (resolved) {
+    return ['--cookies', resolved]
+  }
+
   if (env.YT_COOKIES_FILE && fs.existsSync(env.YT_COOKIES_FILE)) {
     try {
       fs.copyFileSync(env.YT_COOKIES_FILE, COOKIES_TMP)
-      fs.chmodSync(COOKIES_TMP, 0o666)
+      fs.chmodSync(COOKIES_TMP, 0o600)
     } catch {
       return ['--cookies', env.YT_COOKIES_FILE]
     }

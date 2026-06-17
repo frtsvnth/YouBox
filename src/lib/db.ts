@@ -66,6 +66,32 @@ const MIGRATIONS: string[] = [
     ALTER TABLE jobs ADD COLUMN progress_eta INTEGER;
     ALTER TABLE jobs ADD COLUMN current_stage TEXT DEFAULT '';
   `,
+  // v5: cookie sources
+  `
+    CREATE TABLE IF NOT EXISTS cookie_sources (
+      id            TEXT PRIMARY KEY,
+      source_type   TEXT NOT NULL CHECK(source_type IN ('uploaded_file','browser_session')),
+      status        TEXT NOT NULL DEFAULT 'disabled'
+                    CHECK(status IN ('active','missing','stale','invalid','disabled')),
+      file_path     TEXT,
+      uploaded_at   INTEGER,
+      validated_at  INTEGER,
+      exported_at   INTEGER,
+      error_message TEXT,
+      notes         TEXT,
+      created_at    INTEGER NOT NULL DEFAULT (unixepoch()),
+      updated_at    INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+    CREATE INDEX IF NOT EXISTS idx_cookie_sources_status ON cookie_sources(status);
+    CREATE INDEX IF NOT EXISTS idx_cookie_sources_type ON cookie_sources(source_type);
+  `,
+  // v6: app settings key-value
+  `
+    CREATE TABLE IF NOT EXISTS app_settings (
+      key   TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
+  `,
 ]
 
 function runMigrations(db: Database.Database): void {

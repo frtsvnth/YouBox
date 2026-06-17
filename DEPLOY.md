@@ -145,6 +145,7 @@ curl -s https://youbox.example.com/api/health | python3 -m json.tool
   "ytDlp": { "available": true, "version": "2026.06.09" },
   "ffmpeg": { "available": true, "version": "5.1.9" },
   "cookiesFile": { "available": false, "path": null },
+  "cookieSource": { "type": null, "status": "none", "validatedAt": null },
   "database": { "available": true, "jobCount": 0 }
 }
 ```
@@ -257,7 +258,37 @@ docker compose start youbox
 
 ## Cookies
 
-**Cookies файл — чувствительный секрет.** Храните его вне каталога репозитория.
+YouBox поддерживает два способа управления cookies для yt-dlp.
+
+### Сценарий A: Upload cookies.txt через UI (по умолчанию)
+
+Подробнее: [docs/COOKIES.md](docs/COOKIES.md#сценарий-a-upload-cookiestxt)
+
+1. Откройте YouBox → Настройки → Источники cookies
+2. Загрузите cookies.txt через UI
+3. Файл станет активным источником автоматически
+
+### Сценарий B: Browser session sidecar (опционально)
+
+Подробнее: [docs/COOKIES.md](docs/COOKIES.md#сценарий-b-browser-сессия-на-vps)
+
+```bash
+# 1. Добавьте в .env:
+# ENABLE_BROWSER_COOKIE_SOURCE=true
+# BROWSER_COOKIE_SERVICE_URL=http://youbox-browser:3808
+
+# 2. Запустите browser sidecar
+docker compose --profile browser up -d youbox-browser
+
+# 3. Перезапустите YouBox (подхватит новые ENV)
+docker compose restart youbox
+
+# 4. Откройте YouBox → Настройки → Браузерная сессия
+# 5. Зайдите в браузер (через SSH tunnel: ssh -L 3808:localhost:3808 user@vps, откройте chrome://inspect)
+# 6. Войдите в YouTube и нажмите "Экспортировать cookies"
+```
+
+### Классический сценарий: cookies.txt через ENV (legacy)
 
 ```bash
 # 1. Экспортируйте cookies из браузера (расширение Get cookies.txt LOCALLY)

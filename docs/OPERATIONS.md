@@ -40,10 +40,10 @@ curl -s -o /dev/null -w "%{http_code}" http://localhost:3007/api/health
 
 ### Когда статус degraded
 
-- **Cookies настроены, но файл отсутствует** — создайте или скопируйте cookies.txt (`chmod 644`)
+- **Cookies не настроены** — загрузите cookies.txt через UI Настроек, настройте browser session или укажите `YT_COOKIES_FILE` в `.env`
+- **Активный источник cookies отсутствует на диске** — статус источника сменится на `missing`. Загрузите новый cookies.txt через UI или активируйте другой источник
+- **Browser sidecar недоступен** — проверьте контейнер: `docker compose --profile browser ps`. Убедитесь, что `ENABLE_BROWSER_COOKIE_SOURCE=true` и `BROWSER_COOKIE_SERVICE_URL` настроены
 - **yt-dlp не установлен** — пересоберите образ (`docker compose build --pull`)
-- **ffmpeg не установлен** — пересоберите образ
-- **yt-dlp жалуется на JS runtime** — проверьте версию yt-dlp и наличие node в контейнере
 
 Контейнер продолжает работать, но функциональность может быть ограничена.
 
@@ -270,6 +270,7 @@ curl -s https://youbox.example.com/api/health
   "ytDlp": { "available": true, "version": "2026.06.09" },
   "ffmpeg": { "available": true, "version": "5.1.9" },
   "cookiesFile": { "available": true, "path": null },
+  "cookieSource": { "type": "uploaded_file", "status": "active", "validatedAt": 1700000000 },
   "database": { "available": true, "jobCount": 5 }
 }
 ```

@@ -13,6 +13,7 @@ import { PlaylistConfirmDialog } from '@/components/PlaylistConfirmDialog'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { InlineSpinner } from '@/components/ui/Spinner'
+import { SettingsPanel } from '@/components/SettingsPanel'
 import type { ExtractedMetadata, Job } from '@/types'
 
 const PRESET_MAP: Record<string, { format_id: string | null; format: 'mp4' | 'mp3' | 'webm'; mode: 'video' | 'audio' }> = {
@@ -39,6 +40,7 @@ export default function DashboardPage() {
 
   const [historyOpen, setHistoryOpen] = useState(false)
   const [logsOpen, setLogsOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [selectedJob, setSelectedJob] = useState<Job | null>(null)
   const [detailsOpen, setDetailsOpen] = useState(false)
 
@@ -187,6 +189,17 @@ export default function DashboardPage() {
               <span className="text-sm font-semibold text-text-primary">YouBox - только для своих</span>
             </div>
             <div className="flex items-center gap-0.5">
+              <button
+                onClick={() => setSettingsOpen(true)}
+                className="p-2 text-text-tertiary hover:text-text-primary rounded-lg hover:bg-card-hover transition-colors"
+                aria-label="Настройки"
+                title="Настройки"
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M8 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4z" stroke="currentColor" strokeWidth="1.3" />
+                  <path d="M12.5 8c0-.3.2-.6.4-.8l.6-.8a.8.8 0 0 0-.2-1.1l-.9-.5a.9.9 0 0 1-.4-1l.2-1a.8.8 0 0 0-.6-.9h-1a.9.9 0 0 1-.8-.5l-.4-.9a.8.8 0 0 0-1.1-.3l-.8.5a.9.9 0 0 1-1 0l-.8-.5a.8.8 0 0 0-1.1.3l-.4.9a.9.9 0 0 1-.8.5h-1a.8.8 0 0 0-.6.9l.2 1a.9.9 0 0 1-.4 1l-.9.5a.8.8 0 0 0-.2 1.1l.6.8c.2.2.4.5.4.8s-.2.6-.4.8l-.6.8a.8.8 0 0 0 .2 1.1l.9.5a.9.9 0 0 1 .4 1l-.2 1a.8.8 0 0 0 .6.9h1a.9.9 0 0 1 .8.5l.4.9a.8.8 0 0 0 1.1.3l.8-.5a.9.9 0 0 1 1 0l.8.5a.8.8 0 0 0 1.1-.3l.4-.9a.9.9 0 0 1 .8-.5h1a.8.8 0 0 0 .6-.9l-.2-1a.9.9 0 0 1 .4-1l.9-.5a.8.8 0 0 0 .2-1.1l-.6-.8c-.2-.2-.4-.5-.4-.8z" stroke="currentColor" strokeWidth="1.3" />
+                </svg>
+              </button>
               <ThemeToggle />
               <button
                 onClick={() => setLogsOpen(true)}
@@ -326,6 +339,12 @@ export default function DashboardPage() {
         <LogPanel
           open={logsOpen}
           onClose={() => setLogsOpen(false)}
+        />
+
+        <SettingsPanel
+          key={settingsOpen ? 'open' : 'closed'}
+          open={settingsOpen}
+          onClose={() => setSettingsOpen(false)}
         />
       </div>
     </ThemeProvider>

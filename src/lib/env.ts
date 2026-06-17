@@ -28,9 +28,15 @@ export const env = {
   PLAYLIST_MAX_ITEMS: intEnv('PLAYLIST_MAX_ITEMS', 10),
   LOGIN_MAX_ATTEMPTS: intEnv('LOGIN_MAX_ATTEMPTS', 5),
   LOGIN_LOCKOUT_DURATION: intEnv('LOGIN_LOCKOUT_DURATION', 300),
+  ENABLE_BROWSER_COOKIE_SOURCE: process.env.ENABLE_BROWSER_COOKIE_SOURCE === 'true',
+  DEFAULT_COOKIE_SOURCE: (process.env.DEFAULT_COOKIE_SOURCE as 'uploaded_file' | 'browser_session') ?? 'uploaded_file',
+  UPLOADED_COOKIES_PATH: process.env.UPLOADED_COOKIES_PATH ?? null,
+  BROWSER_COOKIE_SERVICE_URL: process.env.BROWSER_COOKIE_SERVICE_URL ?? null,
+  BROWSER_COOKIE_EXPORT_PATH: process.env.BROWSER_COOKIE_EXPORT_PATH ?? null,
   DB_PATH: () => `${env.DATA_DIR}/db/youbox.db`,
   DOWNLOADS_DIR: () => `${env.DATA_DIR}/downloads`,
   TMP_DIR: () => `${env.DATA_DIR}/tmp`,
+  COOKIES_DIR: () => `${env.DATA_DIR}/cookies`,
   UPTIME: () => _startTime,
 } as const
 

@@ -1,174 +1,288 @@
-# Cookies: настройка и эксплуатация
+# Cookie Source Management в YouBox
 
-> **Внимание**: cookies.txt — это **чувствительный секрет**. Он содержит ваши логин-сессии к YouTube и другим сайтам.
-> Хранение и передача cookies-файла должны быть максимально защищены.
+YouBox поддерживает два независимых сценария для работы с cookies YouTube:
+
+- **A. Upload cookies.txt** — загрузка готового файла через UI (рабочий сценарий по умолчанию)
+- **B. Browser session на VPS** — запуск Chromium в sidecar-контейнере, ручной вход в аккаунт, экспорт cookies
+
+Оба сценария работают через единый **Cookie Source Manager**, который предоставляет downloader'у
+актуальный cookies-файл, независимо от того, какой источник активен.
 
 ---
 
-## Зачем нужен cookies.txt
+## Как это работает
 
-YouBox использует yt-dlp для загрузки видео. Некоторые сайты (YouTube, Vimeo и др.) требуют аутентификации для доступа к контенту:
+```
+                  ┌─────────────────────────────────┐
+                  │     Cookie Source Manager        │
+                  │                                  │
+                  │  ┌──────────┐  ┌──────────────┐  │
+                  │  │ Uploaded │  │   Browser    │  │
+                  │  │  File    │  │   Session    │  │
+                  │  └────┬─────┘  └──────┬───────┘  │
+                  │       │               │          │
+                  │       └───────┬───────┘          │
+                  │               │                  │
+                  │        Active Source             │
+                  │               │                  │
+                  └───────────────┼──────────────────┘
+                                  │
+                          resolved cookies.txt
+                                  │
+                                  ▼
+                            yt-dlp downloader
+```
 
-- **Возрастные ограничения** (18+ видео)
-- **Приватные видео**
-- **DDoS-защита** (YouTube может требовать cookies для разблокировки)
-- **Региональные ограничения**
+Активным может быть только один источник в любой момент времени.
+Downloader всегда получает файл через `getResolvedCookiePath()`, который:
 
-Cookies-файл — это экспортированные сессионные куки из вашего браузера. yt-dlp передаёт их при запросе, "притворяясь" вашим браузером.
+1. Проверяет активный источник в БД
+2. Если активный источник есть — копирует его файл в `/tmp/youbox-cookies.txt`
+3. Если активного источника нет — использует `YT_COOKIES_FILE` из env (старый сценарий)
+4. Если и env-файла нет — запускает yt-dlp без cookies
 
-## Безопасность cookies
+---
 
-### ⚠️ Никогда не делайте:
+## Сценарий A: Upload cookies.txt
 
-- Не коммитьте cookies.txt в git (даже в приватный репозиторий)
-- Не храните cookies.txt внутри каталога репозитория (`/opt/youbox/`)
-- Не передавайте cookies.txt через незащищённые каналы (мессенджеры, email)
-- Не логируйте содержимое cookies
-- Не используйте один cookies-файл для нескольких людей
-- Не храните cookies.txt в общедоступных директориях (`/tmp`, `/var/www`, `~/Downloads`)
+### Когда использовать
 
-### ✅ Рекомендации:
+- У вас уже есть готовый cookies.txt от браузерного расширения (Get cookies.txt, EditThisCookie)
+- Вы используете `rotate-cookies.sh` для периодической ротации
+- Вы не хотите запускать дополнительный browser sidecar
 
-- Храните cookies.txt **вне каталога репозитория**, например:
-  ```bash
-  /opt/youbox-secrets/youtube.cookies.txt
-  ```
-- Используйте выделенный аккаунт Google (не личный) для экспорта cookies
-- Установите правильные права:
-  ```bash
-  sudo mkdir -p /opt/youbox-secrets
-  sudo chmod 700 /opt/youbox-secrets
-  sudo chown $USER:$USER /opt/youbox-secrets
-  ```
-- Регулярно обновляйте cookies (раз в 1-3 месяца)
+### Как использовать
 
-## Первая настройка
+1. Откройте **Настройки** (иконка шестерёнки в правом верхнем углу)
+2. В разделе «Загрузить cookies.txt» нажмите «Выбрать файл»
+3. Выберите ваш `cookies.txt`
+4. Файл будет загружен, пройдёт базовую валидацию и станет активным источником
 
-### 1. Экспорт cookies из браузера
+### Формат файла
 
-Установите расширение (на компьютере, НЕ на сервере):
+Ожидается формат **Netscape HTTP Cookie File**:
 
-- **[Get cookies.txt LOCALLY](https://chrome.google.com/webstore/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc)** (Chrome/Edge)
-- **cookies.txt** (Firefox)
+```
+# Netscape HTTP Cookie File
+.youtube.com	TRUE	/	TRUE	1700000000	CONSENT	YES+...
+.google.com	TRUE	/	TRUE	1700000000	__Secure-3PSID	...
+...
+```
 
-Инструкция:
-1. Откройте YouTube в браузере и **войдите в аккаунт**
-2. Нажмите на иконку расширения → "Export"
-3. Сохраните файл как `youtube.cookies.txt`
+### Действия
 
-### 2. Копирование на VPS
+| Действие | Описание |
+|----------|----------|
+| Загрузить | Загрузить новый cookies.txt |
+| Сделать активным | Переключить активный источник на этот файл |
+| Проверить | Базовая валидация (формат файла) + глубокая проверка (запрос к YouTube) |
+| Заменить | Загрузить новый файл поверх текущего |
+| Удалить | Удалить файл с сервера и запись из БД |
+
+> ⚠️ При удалении активного источника будет показано подтверждение.
+> После удаления будет использован `YT_COOKIES_FILE` из env, если он настроен.
+
+---
+
+## Сценарий B: Browser session на VPS
+
+### Когда использовать
+
+- Upload-сценарий по какой-то причине не подходит
+- Вы хотите использовать свежие cookies от аккаунта, в который можно войти вручную
+- Вам нужен постоянный browser profile, который не требует повторного входа
+
+### Требования
+
+- Docker Compose на сервере
+- Возможность запустить sidecar-контейнер с Chromium (профиль `browser`)
+- Права `SYS_ADMIN` для Chromium (контейнеру)
+- Persistent volume для browser profile
+
+### Как включить
+
+1. Добавьте в `.env`:
+
+```env
+ENABLE_BROWSER_COOKIE_SOURCE=true
+BROWSER_COOKIE_SERVICE_URL=http://youbox-browser:3808
+BROWSER_COOKIE_EXPORT_PATH=/data/cookies/browser-exported.txt
+```
+
+2. Запустите sidecar:
 
 ```bash
-# Локально (на вашем компьютере)
-scp youtube.cookies.txt user@your-server-ip:/opt/youbox-secrets/youtube.cookies.txt
+docker compose --profile browser up -d youbox-browser
 ```
 
-После копирования на сервере:
-```bash
-ssh user@your-server-ip
-chmod 644 /opt/youbox-secrets/youtube.cookies.txt
-```
-
-
-### 4. Как это работает в Docker Compose
-
-В `docker-compose.yml` cookies файл монтируется с флагом `:ro` (read-only),
-чтобы yt-dlp не мог перезаписать оригинал:
-
-```yaml
-volumes:
-  - /opt/youbox-secrets/youtube.cookies.txt:/cookies/cookies.txt:ro
-```
-
-Внутри контейнера:
-- Файл доступен по пути `/cookies/cookies.txt`
-- Приложение (через `env.YT_COOKIES_FILE`) знает этот путь как `/cookies/cookies.txt`
-- Перед вызовом yt-dlp приложение **копирует** файл в `/tmp/youbox-cookies.txt`
-- yt-dlp при выходе пытается перезаписать **все** известные cookie-файлы
-  (включая `/cookies/cookies.txt`). Флаг `:ro` на уровне ядра блокирует запись,
-  а приложение использует копию в `/tmp` — оригинал остаётся нетронутым
-
-### 5. Права на файл
-
-На хосте файл должен быть **доступен для чтения** пользователю контейнера
-(youbox, uid 1001). Контейнер запускается от youbox, поэтому права 644:
+3. Перезапустите основной контейнер (подхватит новые ENV):
 
 ```bash
-chmod 644 /opt/youbox-secrets/youtube.cookies.txt
+docker compose restart youbox
 ```
 
-Это гарантирует, что контейнер может прочитать файл, но yt-dlp не может
-его перезаписать (флаг `:ro` в монтировании + права 644).
+### Как использовать
 
-### 6. Проверка
-
-```bash
-# Проверка что контейнер видит файл
-docker exec youbox ls -la /cookies/cookies.txt
-
-# Проверка через health endpoint
-curl -s http://localhost:3007/api/health | python3 -m json.tool
-# Ищем: "cookiesFile": { "available": true, "path": null }
-```
-
-## Жизненный цикл cookies
-
-### Когда cookies протухают
-
-Cookies-файл живёт от нескольких недель до нескольких месяцев. Признаки:
-
-1. **Health endpoint показывает degraded**:
-   ```json
-   { "status": "degraded", "cookiesFile": { "available": true, "path": null } }
+1. Откройте **Настройки** в YouBox (шестерёнка в правом верхнем углу)
+2. Нажмите **«🌐 Открыть браузер и YouTube»** — sidecar запустит Chromium и откроет YouTube
+3. Выполните SSH-туннель на своём компьютере (команда показана в UI, можно скопировать одной кнопкой):
+   ```bash
+   ssh -L 3808:localhost:3808 root@ваш-сервер
    ```
-   — файл существует, но YouTube перестал его принимать
+4. Откройте **Chrome** на своём компьютере, перейдите на `chrome://inspect`
+5. Нажмите «Configure...» → добавьте `localhost:3808`
+6. Нажмите **«inspect»** на вкладке YouTube — откроется полноценный браузер
+7. Войдите в аккаунт YouTube — сессия сохранится в профиле
+8. Вернитесь в YouBox → Настройки → нажмите **«📦 Экспортировать cookies»**
+9. Cookies будут экспортированы и автоматически активированы
 
-2. **Ошибки yt-dlp**: "Sign in to confirm your age", "HTTP Error 403", "Video unavailable"
+> 💡 **Совет:** Если не хотите каждый раз подключаться через `chrome://inspect`, достаточно войти в аккаунт один раз. Профиль браузера сохраняется в Docker volume и переживает перезапуски.
 
-3. **Видео не загружаются**, хотя сервис работает
+### Структура browser sidecar
 
-4. **Ошибка yt-dlp** «Requested format is not available» — может означать, что
-   куки устарели или yt-dlp нуждается в обновлении JS runtime компонентов
-
-### Ротация cookies
-
-Когда cookies протухли, замените их на свежие:
-
-```bash
-# 1. На компьютере — экспортируйте свежие cookies из браузера
-# 2. Скопируйте на сервер
-scp fresh_cookies.txt user@server:/tmp/
-
-# 3. На сервере — выполните ротацию
-/opt/youbox/deploy/rotate-cookies.sh /tmp/fresh_cookies.txt
+```
+browser-sidecar/
+├── Dockerfile          # Node 22 + Chromium для браузерной сессии
+├── package.json        # Зависимости: express, playwright
+└── src/
+    └── server.js       # HTTP-сервис: управление браузером, экспорт cookies
 ```
 
-Скрипт `rotate-cookies.sh`:
-- Копирует новый файл во временный
-- Устанавливает права `600`
-- Атомарно заменяет старый файл (через `mv`)
-- **Не требует перезапуска контейнера** — Docker bind mount подхватит изменения,
-  а приложение копирует файл в `/tmp` при каждом вызове yt-dlp
+### API sidecar'а
 
-### Если cookies-файла нет
+| Endpoint | Метод | Описание |
+|----------|-------|----------|
+| `/` | GET | Landing page с инструкциями и кнопками |
+| `/status` | GET | Статус браузера, профиля, список открытых страниц |
+| `/open-youtube` | POST | Запустить браузер (если не запущен) и открыть YouTube |
+| `/export` | POST | Экспортировать cookies в Netscape формате |
+| `/validate` | POST | Проверить наличие YouTube cookies |
+| `/health` | GET | Health check |
 
-Приложение продолжает работать в **degraded mode**:
+### Хранение профиля
 
-| Состояние | Health status | Поведение |
-|-----------|--------------|-----------|
-| Cookies не настроены | `ok` | yt-dlp работает без cookies |
-| Cookies настроены, файл отсутствует | `degraded` | yt-dlp без cookies, предупреждение в health |
-| Cookies настроены, файл есть | `ok` | yt-dlp с cookies |
-| Cookies есть, но YouTube их не принимает | `ok` (но ошибки yt-dlp) | Нужна ротация |
+- Профиль браузера хранится в Docker volume `youbox_browser_profile`
+- Volume переживает перезапуски контейнера
+- Путь внутри контейнера: `/browser-profile`
+- Если профиль уже есть, повторный вход не требуется (если сессия не истекла)
 
-Docker HEALTHCHECK **не упадёт** в degraded mode (exit code 1 ≠ 2).
+### Безопасность
 
-## Best practices
+- Sidecar доступен только внутри Docker network `youbox_internal`
+- Наружу не暴露 порты (только `expose`, не `ports`)
+- Все операции с cookies — через авторизованный API YouBox
+- Экспортированный файл cookies хранится с правами `600`
+- Содержимое cookies не логируется
 
-1. **Выделенный аккаунт**: используйте отдельный Google-аккаунт для экспорта cookies. Не используйте личный.
-2. **Минимальные права**: cookies.txt на сервере — `chmod 644`, директория — `chmod 700`
-3. **Храните вне репозитория**: `/opt/youbox-secrets/` — рекомендованный путь
-4. **Не логируйте**: приложение redactит путь к cookies в debug-логах (заменяет на `<redacted>`)
-5. **Регулярная ротация**: добавьте напоминание в календарь раз в 2 месяца
-6. **Мониторинг**: проверяйте `/api/health` — если status `degraded`, проверьте cookies
-7. **Отзыв**: если скомпрометировали cookies — смените пароль Google и экспортируйте новые
+---
+
+## Переключение между источниками
+
+1. Откройте **Настройки**
+2. В разделе «Все источники» найдите нужный источник
+3. Нажмите **«Сделать активным»**
+4. Downloader начнёт использовать новый файл при следующем скачивании
+
+Активный источник отмечен бейджем «Выбран».
+
+---
+
+## Default source через ENV
+
+Если вы хотите, чтобы по умолчанию использовался browser source (когда он доступен):
+
+```env
+DEFAULT_COOKIE_SOURCE=browser_session
+```
+
+Если browser source недоступен, произойдёт graceful fallback:
+1. Проверяется активный source в БД
+2. Если нет — проверяется `YT_COOKIES_FILE` из env
+3. Если нет — скачивание без cookies
+
+---
+
+## Health check
+
+В health-эндпоинт добавлена информация об активном источнике cookies:
+
+```json
+{
+  "cookieSource": {
+    "type": "uploaded_file",
+    "status": "active",
+    "validatedAt": 1700000000
+  }
+}
+```
+
+---
+
+## Fallback behaviour
+
+| Ситуация | Поведение |
+|----------|-----------|
+| Browser source включен, но sidecar не отвечает | Статус browser — «Остановлен». Экспорт недоступен. Используется другой источник, если активен. |
+| Uploaded файл удалён с диска | Статус меняется на `missing`. Используется `YT_COOKIES_FILE` из env (если есть). |
+| Активный источник удалён | Удаляется запись из БД + файл. Fallback на `YT_COOKIES_FILE`. |
+| Ни одного источника нет | yt-dlp запускается без `--cookies`. |
+| Browser source выключен (ENV) | Настройки показывают сообщение, UI для browser скрыт. |
+
+---
+
+## Миграция с YT_COOKIES_FILE на Cookie Source Manager
+
+При первом запуске после добавления Cookie Source Manager, если в `data/cookies` нет ни одного источника,
+но `YT_COOKIES_FILE` настроен и файл существует, будет автоматически создан uploaded source из этого файла.
+
+Это обеспечивает бесшовную миграцию без изменения текущей конфигурации.
+
+---
+
+## Операционные сценарии
+
+### First-time setup через upload
+
+1. Экспортируйте cookies из браузера (расширение Get cookies.txt)
+2. Загрузите файл через UI Настроек
+3. Файл автоматически станет активным
+4. Готово
+
+### First-time setup через browser session
+
+1. Запустите browser sidecar: `docker compose --profile browser up -d youbox-browser`
+2. Войдите в браузер (через SSH tunnel или Traefik)
+3. Перейдите на YouTube и войдите в аккаунт
+4. В настройках YouBox нажмите «Экспортировать cookies»
+5. Cookies станут активным источником
+6. Готово
+
+### Rotation uploaded cookies
+
+1. Загрузите новый cookies.txt через UI
+2. Старый файл останется в БД (status: disabled, потом можно удалить вручную)
+
+### Switching active source
+
+1. Откройте Настройки
+2. Найдите нужный источник в списке
+3. Нажмите «Сделать активным»
+4. Источник сменится мгновенно, следующее скачивание будет с новым файлом
+
+### Disable browser mode
+
+1. Установите `ENABLE_BROWSER_COOKIE_SOURCE=false` (или удалите из .env)
+2. Остановите sidecar: `docker compose --profile browser down youbox-browser`
+3. Активируйте uploaded source через UI
+4. Перезапустите основной контейнер
+
+---
+
+## Переменные окружения
+
+| Переменная | По умолчанию | Описание |
+|------------|-------------|----------|
+| `ENABLE_BROWSER_COOKIE_SOURCE` | `false` | Включить поддержку browser source |
+| `DEFAULT_COOKIE_SOURCE` | `uploaded_file` | Источник по умолчанию (`uploaded_file` или `browser_session`) |
+| `BROWSER_COOKIE_SERVICE_URL` | `null` | URL sidecar-сервиса (http://youbox-browser:3808) |
+| `BROWSER_COOKIE_EXPORT_PATH` | `null` | Путь для сохранения экспортированных cookies |
