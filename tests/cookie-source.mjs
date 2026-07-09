@@ -168,6 +168,98 @@ describe('fallback behavior', () => {
   })
 })
 
+// ─── Source rotation on auth error (worker helper logic) ──
+
+// Воспроизводит логику runWithSourceRotation из src/lib/worker.ts:
+// одна повторная попытка с другим источником при auth-ошибке, иначе проброс.
+// Применяется одинаково к обеим стадиям (extract и download).
+describe('source rotation on auth error', () => {
+
+  function makeRunner({ authErrorCode, active, next, failTwice = false }) {
+    const calls = { run: 0, markFailed: 0, beforeRetry: 0 }
+
+    async function run() {
+      calls.run += 1
+      if (calls.run === 1 || failTwice) {
+        const err = new Error('yt-dlp failed')
+        err.isYtDlp = true
+        err.errorCode = authErrorCode
+        throw err
+      }
+      return 'ok'
+    }
+
+    const isAuthError = (code) => ['BOT_CHECK', 'NO_FORMATS', 'CLIENT_BLOCKED'].includes(code)
+    const getActiveSource = () => active
+    const markSourceFailed = () => { calls.markFailed += 1; return next }
+
+    async function runWithSourceRotation() {
+      try {
+        return await run()
+      } catch (err) {
+        if (err.isYtDlp && isAuthError(err.errorCode)) {
+          const a = getActiveSource()
+          const n = a ? markSourceFailed(a.id, err.errorCode) : null
+          if (n && n.id !== a?.id) {
+            calls.beforeRetry += 1
+            return await run()
+          }
+        }
+        throw err
+      }
+    }
+
+    return { runWithSourceRotation, calls }
+  }
+
+  it('retries once with next source on auth error and succeeds', async () => {
+    const { runWithSourceRotation, calls } = makeRunner({
+      authErrorCode: 'BOT_CHECK',
+      active: { id: '1' },
+      next: { id: '2' },
+    })
+    const result = await runWithSourceRotation()
+    assert.strictEqual(result, 'ok')
+    assert.strictEqual(calls.run, 2)
+    assert.strictEqual(calls.markFailed, 1)
+    assert.strictEqual(calls.beforeRetry, 1)
+  })
+
+  it('does not retry on non-auth error (propagates)', async () => {
+    const { runWithSourceRotation, calls } = makeRunner({
+      authErrorCode: 'UNAVAILABLE',
+      active: { id: '1' },
+      next: { id: '2' },
+    })
+    await assert.rejects(runWithSourceRotation())
+    assert.strictEqual(calls.run, 1)
+    assert.strictEqual(calls.markFailed, 0)
+  })
+
+  it('does not retry when no other usable source (propagates)', async () => {
+    const { runWithSourceRotation, calls } = makeRunner({
+      authErrorCode: 'BOT_CHECK',
+      active: { id: '1' },
+      next: null,
+    })
+    await assert.rejects(runWithSourceRotation())
+    assert.strictEqual(calls.run, 1)
+    assert.strictEqual(calls.markFailed, 1)
+    assert.strictEqual(calls.beforeRetry, 0)
+  })
+
+  it('does not retry when rotation returns the same source', async () => {
+    const { runWithSourceRotation, calls } = makeRunner({
+      authErrorCode: 'BOT_CHECK',
+      active: { id: '1' },
+      next: { id: '1' },
+    })
+    await assert.rejects(runWithSourceRotation())
+    assert.strictEqual(calls.run, 1)
+    assert.strictEqual(calls.beforeRetry, 0)
+  })
+})
+
 // ─── Health status mapping ───────────────────────────────
 
 describe('health status mapping', () => {

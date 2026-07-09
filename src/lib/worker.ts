@@ -26,6 +26,30 @@ function now(): number {
   return Math.floor(Date.now() / 1000)
 }
 
+// Выполняет операцию yt-dlp с ротацией источника cookies при ошибке авторизации:
+// текущий источник уходит в кулдаун, активируется следующий пригодный, и делается
+// одна повторная попытка. Если ротация невозможна (нет другого источника) или ошибка
+// не связана с авторизацией — исключение пробрасывается дальше (job падает как раньше).
+async function runWithSourceRotation<T>(
+  run: () => Promise<T>,
+  ctx: { jobId: string; stage: string; onBeforeRetry?: () => void },
+): Promise<T> {
+  try {
+    return await run()
+  } catch (err) {
+    if (err instanceof YtDlpError && isAuthError(err.errorCode)) {
+      const active = getActiveSource()
+      const next = active ? markSourceFailed(active.id, err.errorCode) : null
+      if (next && next.id !== active?.id) {
+        log(`retry ${ctx.jobId} (${ctx.stage}) с источником ${next.id} после ${err.errorCode}`)
+        ctx.onBeforeRetry?.()
+        return await run()
+      }
+    }
+    throw err
+  }
+}
+
 async function processNextJob(): Promise<void> {
   if (isProcessing) return
   isProcessing = true
@@ -38,7 +62,10 @@ async function processNextJob(): Promise<void> {
       log(`extracting ${created.id}`)
       db.prepare('UPDATE jobs SET status = ?, updated_at = ? WHERE id = ?').run('extracting', t, created.id)
       try {
-        const info = await extractMetadata(created.url)
+        const info = await runWithSourceRotation(
+          () => extractMetadata(created.url),
+          { jobId: created.id, stage: 'extract' },
+        )
         db.prepare(
           'UPDATE jobs SET status = ?, title = ?, updated_at = ? WHERE id = ?',
         ).run('queued', info.title, t, created.id)
@@ -91,25 +118,11 @@ async function processNextJob(): Promise<void> {
           },
         })
 
-        let result
-        try {
-          result = await runDownload()
-        } catch (err) {
-          // При ошибке авторизации — кулдаун текущего источника, ротация и одна повторная попытка.
-          if (err instanceof YtDlpError && isAuthError(err.errorCode)) {
-            const active = getActiveSource()
-            const next = active ? markSourceFailed(active.id, err.errorCode) : null
-            if (next && next.id !== active?.id) {
-              log(`retry ${queued.id} с источником ${next.id} после ${err.errorCode}`)
-              cleanupJobFiles(queued.id)
-              result = await runDownload()
-            } else {
-              throw err
-            }
-          } else {
-            throw err
-          }
-        }
+        const result = await runWithSourceRotation(runDownload, {
+          jobId: queued.id,
+          stage: 'download',
+          onBeforeRetry: () => cleanupJobFiles(queued.id),
+        })
 
         const readyAt = now()
         const expiresAt = readyAt + env.FILE_TTL
