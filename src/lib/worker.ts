@@ -4,7 +4,8 @@ import { extractMetadata, downloadFile, cleanupJobFiles } from './downloader'
 import { getFileSize } from './muxer'
 import { cleanupExpiredFiles, cleanupStaleJobs } from './cleanup'
 import { cleanupExpiredSessions } from './auth'
-import { YtDlpError } from './errors'
+import { YtDlpError, isAuthError } from './errors'
+import { getActiveSource, markSourceFailed } from './cookie-source'
 import { pushLog } from './logger'
 import path from 'node:path'
 import type { Job } from '@/types'
@@ -67,7 +68,7 @@ async function processNextJob(): Promise<void> {
           "UPDATE jobs SET current_stage = ?, status = ?, updated_at = ? WHERE id = ?",
         )
 
-        const result = await downloadFile({
+        const runDownload = () => downloadFile({
           url: queued.url,
           jobId: queued.id,
           format: queued.format,
@@ -89,6 +90,26 @@ async function processNextJob(): Promise<void> {
             )
           },
         })
+
+        let result
+        try {
+          result = await runDownload()
+        } catch (err) {
+          // При ошибке авторизации — кулдаун текущего источника, ротация и одна повторная попытка.
+          if (err instanceof YtDlpError && isAuthError(err.errorCode)) {
+            const active = getActiveSource()
+            const next = active ? markSourceFailed(active.id, err.errorCode) : null
+            if (next && next.id !== active?.id) {
+              log(`retry ${queued.id} с источником ${next.id} после ${err.errorCode}`)
+              cleanupJobFiles(queued.id)
+              result = await runDownload()
+            } else {
+              throw err
+            }
+          } else {
+            throw err
+          }
+        }
 
         const readyAt = now()
         const expiresAt = readyAt + env.FILE_TTL

@@ -92,6 +92,13 @@ const MIGRATIONS: string[] = [
       value TEXT NOT NULL
     );
   `,
+  // v7: cookie source rotation (round-robin + cooldown)
+  `
+    ALTER TABLE cookie_sources ADD COLUMN last_used_at INTEGER;
+    ALTER TABLE cookie_sources ADD COLUMN cooldown_until INTEGER;
+    ALTER TABLE cookie_sources ADD COLUMN failure_count INTEGER NOT NULL DEFAULT 0;
+    CREATE INDEX IF NOT EXISTS idx_cookie_sources_last_used ON cookie_sources(last_used_at);
+  `,
 ]
 
 function runMigrations(db: Database.Database): void {

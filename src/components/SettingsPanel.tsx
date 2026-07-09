@@ -40,6 +40,10 @@ function formatDate(ts: number | null): string {
   return new Date(ts * 1000).toLocaleString('ru-RU')
 }
 
+function cooldownActive(source: CookieSource): boolean {
+  return source.cooldown_until != null && source.cooldown_until * 1000 > Date.now()
+}
+
 function SourceRow({
   source,
   onActivate,
@@ -69,9 +73,14 @@ function SourceRow({
             {STATUS_LABELS[source.status] || source.status}
           </Badge>
         </div>
-        {isActive && (
-          <Badge variant="info">Выбран</Badge>
-        )}
+        <div className="flex items-center gap-2">
+          {cooldownActive(source) && (
+            <Badge variant="warning">В кулдауне</Badge>
+          )}
+          {isActive && (
+            <Badge variant="info">Выбран</Badge>
+          )}
+        </div>
       </div>
 
       <div className="text-xs text-text-tertiary space-y-0.5">
@@ -83,6 +92,9 @@ function SourceRow({
         )}
         {source.validated_at && (
           <p>Проверен: {formatDate(source.validated_at)}</p>
+        )}
+        {cooldownActive(source) && (
+          <p className="text-warning">В кулдауне до: {formatDate(source.cooldown_until)}</p>
         )}
         {source.error_message && (
           <p className="text-error mt-1">{source.error_message}</p>

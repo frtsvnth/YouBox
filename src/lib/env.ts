@@ -33,6 +33,13 @@ export const env = {
   UPLOADED_COOKIES_PATH: process.env.UPLOADED_COOKIES_PATH ?? null,
   BROWSER_COOKIE_SERVICE_URL: process.env.BROWSER_COOKIE_SERVICE_URL ?? null,
   BROWSER_COOKIE_EXPORT_PATH: process.env.BROWSER_COOKIE_EXPORT_PATH ?? null,
+  // PO Token provider (bgutil). Пусто = выключено.
+  POT_PROVIDER_URL: process.env.POT_PROVIDER_URL ?? null,
+  // Авто-переэкспорт cookies через sidecar. Включается только если заданы аккаунты.
+  ENABLE_COOKIE_AUTO_REFRESH: process.env.ENABLE_COOKIE_AUTO_REFRESH === 'true',
+  COOKIE_REFRESH_INTERVAL_MINUTES: intEnv('COOKIE_REFRESH_INTERVAL_MINUTES', 360),
+  // Кулдаун источника cookies после ошибки авторизации (минуты).
+  COOKIE_SOURCE_COOLDOWN_MINUTES: intEnv('COOKIE_SOURCE_COOLDOWN_MINUTES', 45),
   DB_PATH: () => `${env.DATA_DIR}/db/youbox.db`,
   DOWNLOADS_DIR: () => `${env.DATA_DIR}/downloads`,
   TMP_DIR: () => `${env.DATA_DIR}/tmp`,

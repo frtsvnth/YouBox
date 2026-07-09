@@ -66,6 +66,13 @@ npm run dev
 | `BROWSER_COOKIE_SERVICE_URL` | URL browser sidecar (напр. `http://youbox-browser:3808`) |
 | `BROWSER_COOKIE_EXPORT_PATH` | Путь для сохранения экспортированных cookies (напр. `/data/cookies/browser-exported.txt`) |
 | `DEFAULT_COOKIE_SOURCE` | Источник по умолчанию (`uploaded_file`/`browser_session`) |
+| `COOKIE_SOURCE_COOLDOWN_MINUTES` | Кулдаун источника cookies после ошибки авторизации (по умолч. `45`) |
+| `POT_PROVIDER_URL` | URL bgutil PO Token provider (напр. `http://bgutil-pot:4416`, пусто = выкл.) |
+| `ENABLE_COOKIE_AUTO_REFRESH` | Авто-обновление cookies через sidecar autologin (`true`/`false`) |
+| `COOKIE_REFRESH_INTERVAL_MINUTES` | Интервал авто-обновления cookies (по умолч. `360`) |
+| `GOOGLE_ACCOUNT_<N>_EMAIL` / `_PASSWORD` | Google-аккаунты для автологина (только в `.env` на VPS, НЕ в git) |
+
+> Подробнее о ротации источников, PO Token и авто-обновлении cookies — в [docs/COOKIES.md](docs/COOKIES.md).
 
 ## Архитектура деплоя
 

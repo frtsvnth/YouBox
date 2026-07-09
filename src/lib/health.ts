@@ -2,6 +2,7 @@ import { env } from './env'
 import { getDb } from './db'
 import { runSubprocess } from './subprocess'
 import { getActiveSource } from './cookie-source'
+import { getLastRefreshStatus } from './cookie-refresh'
 import fs from 'node:fs'
 import type { HealthStatus } from '@/types'
 
@@ -41,6 +42,14 @@ export async function getHealth(): Promise<HealthStatus> {
     ? { type: activeSource.source_type, status: activeSource.status, validatedAt: activeSource.validated_at }
     : null
 
+  const refresh = getLastRefreshStatus()
+  const cookieRefresh = {
+    enabled: refresh.enabled,
+    lastRunAt: refresh.lastRunAt,
+    lastSuccessAt: refresh.lastSuccessAt,
+    accounts: refresh.accounts,
+  }
+
   const allOk = ytDlp.available && ffmpeg.available && dbAvailable
   const cookiesMissing = cookiesConfigured && !cookiesAvailable && !activeSource
   const criticalFail = !dbAvailable
@@ -52,6 +61,7 @@ export async function getHealth(): Promise<HealthStatus> {
     ffmpeg,
     cookiesFile,
     cookieSource: cookieSourceStatus,
+    cookieRefresh,
     database: { available: dbAvailable, jobCount },
   }
 }

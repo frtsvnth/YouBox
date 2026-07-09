@@ -68,6 +68,8 @@ services:
       - "127.0.0.1:3808:3808"
     expose:
       - "3808"
+    # .env содержит GOOGLE_ACCOUNT_*_EMAIL/PASSWORD для авто-логина (только на VPS, не в git).
+    env_file: .env
     environment:
       - PORT=3808
       - BROWSER_PORT=3809
@@ -84,6 +86,27 @@ services:
       - SYS_ADMIN
     tmpfs:
       - /tmp
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - youbox_internal
+
+  # Опциональный PO Token provider (bgutil). Включается профилем `pot`.
+  # Внешних портов нет — доступен только внутри youbox_internal по адресу http://bgutil-pot:4416
+  # Для активации: задайте POT_PROVIDER_URL=http://bgutil-pot:4416 в .env
+  bgutil-pot:
+    image: brainicism/bgutil-ytdlp-pot-provider:latest
+    container_name: youbox-bgutil-pot
+    restart: unless-stopped
+    profiles:
+      - pot
+    expose:
+      - "4416"
+    security_opt:
+      - no-new-privileges:true
     logging:
       driver: "json-file"
       options:

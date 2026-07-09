@@ -62,13 +62,43 @@ export class ConflictError extends AppError {
   }
 }
 
+export type YtDlpErrorCode =
+  | 'BOT_CHECK'
+  | 'NO_FORMATS'
+  | 'CLIENT_BLOCKED'
+  | 'AGE_RESTRICTED'
+  | 'PRIVATE'
+  | 'UNAVAILABLE'
+  | 'HTTP_ERROR'
+  | 'PLAYLIST_LIMIT'
+  | 'UNKNOWN'
+
+// Коды, которые означают, что нужны свежие cookies / другой источник авторизации.
+// Их читают ротация источников (cookie-source) и планировщик авто-переэкспорта.
+export const AUTH_ERROR_CODES: readonly YtDlpErrorCode[] = [
+  'BOT_CHECK',
+  'NO_FORMATS',
+  'CLIENT_BLOCKED',
+]
+
+export function isAuthError(code: YtDlpErrorCode | undefined | null): boolean {
+  return code != null && AUTH_ERROR_CODES.includes(code)
+}
+
 export class YtDlpError extends AppError {
   public readonly rawStderr: string
+  public readonly errorCode: YtDlpErrorCode
 
-  constructor(message: string, userMessage: string, rawStderr?: string) {
+  constructor(
+    message: string,
+    userMessage: string,
+    rawStderr?: string,
+    errorCode: YtDlpErrorCode = 'UNKNOWN',
+  ) {
     super(message, userMessage, 422, 'YT_DLP_ERROR')
     this.name = 'YtDlpError'
     this.rawStderr = rawStderr ?? message
+    this.errorCode = errorCode
   }
 }
 
@@ -84,27 +114,68 @@ export class BinaryNotFoundError extends AppError {
   }
 }
 
-const USER_FRIENDLY_MAP: Record<string, string> = {
-  'Video unavailable': 'Видео недоступно',
-  'Private video': 'Видео является приватным',
-  'This video is private': 'Видео является приватным',
-  'This video is unavailable': 'Видео недоступно',
-  'Sign in to confirm your age': 'Требуется подтверждение возраста. Используйте cookies файл.',
-  'HTTP Error 403': 'Доступ запрещён. Возможно, требуется cookies файл.',
-  'HTTP Error 404': 'Видео не найдено. Проверьте ссылку.',
-  'playlist': 'Плейлист содержит больше элементов, чем разрешено настройками.',
+interface ErrorPattern {
+  pattern: string
+  message: string
+  code: YtDlpErrorCode
+}
+
+// Порядок важен: более специфичные паттерны идут раньше общих.
+const ERROR_PATTERNS: ErrorPattern[] = [
+  {
+    pattern: "Sign in to confirm you're not a bot",
+    message: 'YouTube требует подтверждения. Обновите cookies или включите PO Token.',
+    code: 'BOT_CHECK',
+  },
+  {
+    pattern: 'No video formats found',
+    message: 'Форматы не найдены — вероятно, устарели cookies или нужен PO Token.',
+    code: 'NO_FORMATS',
+  },
+  {
+    pattern: 'The following content is not available on this app',
+    message: 'YouTube заблокировал клиент — обновите yt-dlp и/или cookies.',
+    code: 'CLIENT_BLOCKED',
+  },
+  {
+    pattern: 'Sign in to confirm your age',
+    message: 'Требуется подтверждение возраста. Используйте cookies файл.',
+    code: 'AGE_RESTRICTED',
+  },
+  { pattern: 'Private video', message: 'Видео является приватным', code: 'PRIVATE' },
+  { pattern: 'This video is private', message: 'Видео является приватным', code: 'PRIVATE' },
+  { pattern: 'Video unavailable', message: 'Видео недоступно', code: 'UNAVAILABLE' },
+  { pattern: 'This video is unavailable', message: 'Видео недоступно', code: 'UNAVAILABLE' },
+  { pattern: 'HTTP Error 403', message: 'Доступ запрещён. Возможно, требуется cookies файл.', code: 'HTTP_ERROR' },
+  { pattern: 'HTTP Error 404', message: 'Видео не найдено. Проверьте ссылку.', code: 'HTTP_ERROR' },
+  {
+    pattern: 'playlist',
+    message: 'Плейлист содержит больше элементов, чем разрешено настройками.',
+    code: 'PLAYLIST_LIMIT',
+  },
+]
+
+export interface ClassifiedYtDlpError {
+  userMessage: string
+  code: YtDlpErrorCode
+}
+
+export function classifyYtDlpError(stderr: string): ClassifiedYtDlpError {
+  for (const { pattern, message, code } of ERROR_PATTERNS) {
+    if (stderr.includes(pattern)) return { userMessage: message, code }
+  }
+  if (stderr.includes('HTTP Error')) {
+    return { userMessage: 'Ошибка при загрузке. Проверьте ссылку и cookies файл.', code: 'HTTP_ERROR' }
+  }
+  if (stderr.includes('ERROR:')) {
+    const match = stderr.match(/ERROR:\s*(.+)/)
+    if (match) return { userMessage: match[1].trim(), code: 'UNKNOWN' }
+  }
+  return { userMessage: 'Ошибка при обработке видео. Проверьте ссылку.', code: 'UNKNOWN' }
 }
 
 export function mapYtDlpError(stderr: string): string {
-  for (const [pattern, message] of Object.entries(USER_FRIENDLY_MAP)) {
-    if (stderr.includes(pattern)) return message
-  }
-  if (stderr.includes('HTTP Error')) return 'Ошибка при загрузке. Проверьте ссылку и cookies файл.'
-  if (stderr.includes('ERROR:')) {
-    const match = stderr.match(/ERROR:\s*(.+)/)
-    if (match) return match[1].trim()
-  }
-  return 'Ошибка при обработке видео. Проверьте ссылку.'
+  return classifyYtDlpError(stderr).userMessage
 }
 
 export function errorResponse(err: unknown): Response {
