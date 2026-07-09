@@ -92,6 +92,12 @@ export interface HealthStatus {
   ffmpeg: { available: boolean; version: string | null }
   cookiesFile: { available: boolean; path: string | null }
   cookieSource: { type: string; status: string; validatedAt: number | null } | null
+  cookieRefresh: {
+    enabled: boolean
+    lastRunAt: number | null
+    lastSuccessAt: number | null
+    accounts: { account: string; ok: boolean; at: number; error: string | null }[]
+  } | null
   database: { available: boolean; jobCount: number }
 }
 
@@ -136,6 +142,9 @@ export interface CookieSource {
   notes: string | null
   created_at: number
   updated_at: number
+  last_used_at: number | null
+  cooldown_until: number | null
+  failure_count: number
 }
 
 export interface CookieSourceSummary {

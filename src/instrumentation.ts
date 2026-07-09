@@ -8,5 +8,8 @@ export async function register() {
 
     const { startWorker } = await import('@/lib/worker')
     startWorker()
+
+    const { startCookieRefresh } = await import('@/lib/cookie-refresh')
+    startCookieRefresh()
   }
 }

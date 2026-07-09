@@ -155,8 +155,11 @@ browser-sidecar/
 | `/` | GET | Landing page с инструкциями и кнопками |
 | `/status` | GET | Статус браузера, профиля, список открытых страниц |
 | `/open-youtube` | POST | Запустить браузер (если не запущен) и открыть YouTube |
-| `/export` | POST | Экспортировать cookies в Netscape формате |
+| `/export` | POST | Экспортировать cookies в Netscape формате (опц. тело `{ "profile": "account-1" }`) |
 | `/validate` | POST | Проверить наличие YouTube cookies |
+| `/accounts` | GET | Список настроенных аккаунтов для автологина (только ключи, без секретов) |
+| `/login` | POST | Автологин в Google для аккаунта: тело `{ "account": "account-1" }`. Креды берутся из env sidecar. |
+| `/refresh` | POST | Логин при необходимости + экспорт cookies: тело `{ "account": "account-1" }` |
 | `/health` | GET | Health check |
 
 ### Хранение профиля
@@ -286,3 +289,99 @@ DEFAULT_COOKIE_SOURCE=browser_session
 | `DEFAULT_COOKIE_SOURCE` | `uploaded_file` | Источник по умолчанию (`uploaded_file` или `browser_session`) |
 | `BROWSER_COOKIE_SERVICE_URL` | `null` | URL sidecar-сервиса (http://youbox-browser:3808) |
 | `BROWSER_COOKIE_EXPORT_PATH` | `null` | Путь для сохранения экспортированных cookies |
+| `COOKIE_SOURCE_COOLDOWN_MINUTES` | `45` | Кулдаун источника после ошибки авторизации (минуты) |
+| `POT_PROVIDER_URL` | `null` | URL bgutil PO Token provider (http://bgutil-pot:4416). Пусто = выключено |
+| `ENABLE_COOKIE_AUTO_REFRESH` | `false` | Включить авто-обновление cookies через sidecar (Playwright autologin) |
+| `COOKIE_REFRESH_INTERVAL_MINUTES` | `360` | Интервал авто-обновления cookies (минуты) |
+| `GOOGLE_ACCOUNT_<N>_EMAIL` | — | Email Google-аккаунта для автологина (только в .env на VPS) |
+| `GOOGLE_ACCOUNT_<N>_PASSWORD` | — | Пароль Google-аккаунта для автологина (только в .env на VPS) |
+
+> ⚠️ `GOOGLE_ACCOUNT_*` задаются ТОЛЬКО в локальном `.env` на сервере и НИКОГДА не попадают в git.
+
+---
+
+## Ротация источников cookies (round-robin + кулдаун)
+
+Начиная с текущей версии, YouBox поддерживает несколько пригодных источников cookies и
+автоматически переключается между ними при ошибках авторизации.
+
+**Как работает:**
+
+1. При скачивании downloader использует активный источник и отмечает его `last_used_at`.
+2. Если yt-dlp возвращает ошибку авторизации (`BOT_CHECK` — «Sign in to confirm you're not a bot»,
+   `NO_FORMATS` — «No video formats found», `CLIENT_BLOCKED` — «content is not available on this app»),
+   worker вызывает `markSourceFailed()`:
+   - текущий источник помещается в **кулдаун** на `COOKIE_SOURCE_COOLDOWN_MINUTES` минут;
+   - выбирается следующий пригодный источник по принципу round-robin (LRU по `last_used_at`);
+   - выполняется **одна автоматическая повторная попытка** скачивания с новым источником.
+3. Источник считается пригодным, если он не `missing`/`invalid`, файл существует и он не в кулдауне.
+
+В UI (Настройки → Все источники) источник в кулдауне помечается бейджем «В кулдауне»
+и показывает время окончания кулдауна.
+
+---
+
+## PO Token provider (bgutil) — обход bot-проверки
+
+YouTube всё чаще требует PO Token. YouBox умеет использовать
+[bgutil-ytdlp-pot-provider](https://github.com/Brainicism/bgutil-ytdlp-pot-provider) как опциональный sidecar.
+
+**Как включить:**
+
+1. Запустите provider:
+   ```bash
+   docker compose --profile pot up -d bgutil-pot
+   ```
+2. Добавьте в `.env`:
+   ```env
+   POT_PROVIDER_URL=http://bgutil-pot:4416
+   ```
+3. Перезапустите основной контейнер: `docker compose restart youbox`
+
+Когда `POT_PROVIDER_URL` задан, YouBox добавляет к каждому вызову yt-dlp:
+`--extractor-args youtubepot-bgutilhttp:base_url=<URL>`. Если переменная пуста — поведение не меняется.
+
+> Плагин `bgutil-ytdlp-pot-provider` уже установлен в образ через pip.
+
+---
+
+## Авто-обновление cookies (Playwright autologin)
+
+Sidecar `youbox-browser` умеет автоматически входить в Google-аккаунты (без 2FA) и переэкспортировать
+cookies по расписанию. Это позволяет держать cookies свежими без ручного входа.
+
+**Как включить:**
+
+1. Задайте аккаунты в `.env` на VPS (НЕ в git):
+   ```env
+   GOOGLE_ACCOUNT_1_EMAIL=...
+   GOOGLE_ACCOUNT_1_PASSWORD=...
+   GOOGLE_ACCOUNT_2_EMAIL=...
+   GOOGLE_ACCOUNT_2_PASSWORD=...
+   ```
+2. Включите планировщик и sidecar:
+   ```env
+   ENABLE_BROWSER_COOKIE_SOURCE=true
+   BROWSER_COOKIE_SERVICE_URL=http://youbox-browser:3808
+   ENABLE_COOKIE_AUTO_REFRESH=true
+   COOKIE_REFRESH_INTERVAL_MINUTES=360
+   ```
+3. Запустите: `docker compose --profile browser up -d youbox-browser && docker compose restart youbox`
+
+**Как работает:**
+
+- Каждый аккаунт получает изолированный профиль под `/browser-profile/account-<N>`.
+- Планировщик (`src/lib/cookie-refresh.ts`) по интервалу вызывает sidecar `/refresh` для каждого аккаунта:
+  логинится (если сессия истекла) и экспортирует cookies.
+- Экспортированный файл сохраняется в `data/cookies/browser-<account>.txt` (права `600`),
+  регистрируется как источник cookies и валидируется.
+- Статус последнего обновления виден в health-эндпоинте (`cookieRefresh`).
+
+**Ограничения и риски автологина:**
+
+- Google может обнаружить автоматический вход и потребовать **captcha** или подтверждение
+  «это вы?» / «unusual activity». В этом случае sidecar вернёт понятную ошибку, а автологин не сработает.
+- **2FA не поддерживается.** Используйте аккаунты без двухфакторной аутентификации.
+- **Fallback:** если автологин не работает, войдите вручную один раз через `chrome://inspect`
+  (см. Сценарий B). После ручного входа сессия сохранится в профиле, и `/refresh` сможет
+  просто переэкспортировать cookies без повторного логина.

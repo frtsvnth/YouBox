@@ -42,7 +42,7 @@ export async function POST(request: Request): Promise<Response> {
 
     const validation = validateSource(id)
 
-    if (!validation.valid) {
+    if (validation.valid) {
       await activateSource(id)
     }
 

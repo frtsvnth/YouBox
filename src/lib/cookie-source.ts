@@ -6,6 +6,7 @@ import { v4 as uuid } from 'uuid'
 import type { CookieSource, CookieSourceType, CookieSourceSummary } from '@/types'
 import { pushLog } from './logger'
 import { runSubprocess } from './subprocess'
+import type { YtDlpErrorCode } from './errors'
 
 const COOKIES_TMP = '/tmp/youbox-cookies.txt'
 
@@ -133,7 +134,7 @@ export function deleteSource(id: string): boolean {
 function updateSource(id: string, fields: Partial<CookieSource>): void {
   const db = getDb()
   const now = Math.floor(Date.now() / 1000)
-  const allowed = ['status', 'file_path', 'validated_at', 'exported_at', 'error_message', 'notes']
+  const allowed = ['status', 'file_path', 'validated_at', 'exported_at', 'error_message', 'notes', 'last_used_at', 'cooldown_until', 'failure_count']
   for (const key of allowed) {
     if (key in fields) {
       const val = (fields as Record<string, unknown>)[key]
@@ -178,6 +179,7 @@ export function validateSource(id: string): { valid: boolean; error?: string } {
 export function getResolvedCookiePath(): string | null {
   const active = getActiveSource()
   if (active && active.file_path && fileExists(active.file_path)) {
+    markSourceUsed(active.id)
     try {
       fs.copyFileSync(active.file_path, COOKIES_TMP)
       fs.chmodSync(COOKIES_TMP, 0o600)
@@ -210,6 +212,102 @@ function tryFallbackToEnvSource(): void {
   } else {
     pushLog('warn', 'cookie-source', 'активный источник удалён, cookies не настроены')
   }
+}
+
+// ─── Rotation: round-robin + cooldown ─────────────────────
+
+function markSourceUsed(id: string): void {
+  const db = getDb()
+  const now = Math.floor(Date.now() / 1000)
+  db.prepare('UPDATE cookie_sources SET last_used_at = ? WHERE id = ?').run(now, id)
+}
+
+// Источник считается пригодным для ротации, если он не удалён/невалиден и не в кулдауне.
+function isUsableSource(s: CookieSource, now: number): boolean {
+  if (s.status === 'missing' || s.status === 'invalid') return false
+  if (!s.file_path || !fileExists(s.file_path)) return false
+  if (s.cooldown_until && s.cooldown_until > now) return false
+  return true
+}
+
+// Выбирает следующий пригодный источник по round-robin (LRU по last_used_at) и активирует его.
+export function selectNextUsableSource(excludeId?: string): CookieSource | null {
+  const db = getDb()
+  const now = Math.floor(Date.now() / 1000)
+  const candidates = (
+    db
+      .prepare(
+        "SELECT * FROM cookie_sources WHERE status IN ('active','disabled','stale') ORDER BY last_used_at IS NULL DESC, last_used_at ASC",
+      )
+      .all() as CookieSource[]
+  ).filter((s) => s.id !== excludeId && isUsableSource(s, now))
+
+  if (candidates.length === 0) return null
+
+  const next = candidates[0]
+  return activateSource(next.id)
+}
+
+// Помечает источник как временно нерабочий (кулдаун) после ошибки авторизации и
+// переключается на следующий пригодный источник по round-robin.
+export function markSourceFailed(id: string, code?: YtDlpErrorCode): CookieSource | null {
+  const source = getSourceById(id)
+  if (!source) return null
+
+  const now = Math.floor(Date.now() / 1000)
+  const cooldownSec = Math.max(1, env.COOKIE_SOURCE_COOLDOWN_MINUTES) * 60
+  const db = getDb()
+  db.prepare(
+    'UPDATE cookie_sources SET cooldown_until = ?, failure_count = failure_count + 1, error_message = ?, updated_at = ? WHERE id = ?',
+  ).run(now + cooldownSec, `Ошибка авторизации${code ? ` (${code})` : ''}, источник в кулдауне`, now, id)
+
+  pushLog(
+    'warn',
+    'cookie-source',
+    `источник ${id} в кулдауне на ${env.COOKIE_SOURCE_COOLDOWN_MINUTES} мин (${code ?? 'auth error'})`,
+  )
+
+  const next = selectNextUsableSource(id)
+  if (next) {
+    pushLog('info', 'cookie-source', `переключение на источник ${next.id} (${next.source_type})`)
+  } else {
+    pushLog('warn', 'cookie-source', 'нет доступных источников для ротации')
+  }
+  return next
+}
+
+// Гарантирует, что есть активный пригодный источник; если активного нет — активирует следующий.
+export function ensureSomeActiveSource(): CookieSource | null {
+  const now = Math.floor(Date.now() / 1000)
+  const active = getActiveSource()
+  if (active && isUsableSource(active, now)) return active
+  return selectNextUsableSource()
+}
+
+// Создаёт или обновляет источник cookies для конкретного аккаунта (ключ хранится в notes).
+export function upsertAccountCookieSource(accountKey: string, filePath: string): CookieSource {
+  const db = getDb()
+  const now = Math.floor(Date.now() / 1000)
+  const notes = `account:${accountKey}`
+  const existing = db
+    .prepare("SELECT * FROM cookie_sources WHERE source_type = 'browser_session' AND notes = ?")
+    .get(notes) as CookieSource | undefined
+
+  if (existing) {
+    db.prepare(
+      "UPDATE cookie_sources SET file_path = ?, exported_at = ?, status = CASE WHEN status = 'active' THEN 'active' ELSE 'disabled' END, error_message = NULL, cooldown_until = NULL, updated_at = ? WHERE id = ?",
+    ).run(filePath, now, now, existing.id)
+    pushLog('info', 'cookie-source', `обновлён источник cookies аккаунта ${accountKey}: ${existing.id}`)
+    return getSourceById(existing.id)!
+  }
+
+  const id = uuid()
+  db.prepare(
+    `INSERT INTO cookie_sources (id, source_type, status, file_path, exported_at, notes, created_at, updated_at)
+     VALUES (?, 'browser_session', 'disabled', ?, ?, ?, ?, ?)`,
+  ).run(id, filePath, now, notes, now, now)
+  pushLog('info', 'cookie-source', `создан источник cookies аккаунта ${accountKey}: ${id}`)
+  return getSourceById(id)!
 }
 
 // ─── Browser sidecar communication ────────────────────────
@@ -396,12 +494,16 @@ export function initCookieSources(): void {
 
 export async function validateCookiesViaDownload(path: string): Promise<{ valid: boolean; error?: string }> {
   try {
+    const potArgs = env.POT_PROVIDER_URL
+      ? ['--extractor-args', `youtubepot-bgutilhttp:base_url=${env.POT_PROVIDER_URL}`]
+      : []
     const result = await runSubprocess({
       bin: 'yt-dlp',
       args: [
         '--cookies', path,
         '--js-runtimes', 'node',
         '--remote-components', 'ejs:github',
+        ...potArgs,
         '--no-warnings',
         '--dump-json',
         '--no-download',

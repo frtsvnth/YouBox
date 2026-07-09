@@ -1,6 +1,6 @@
 import { runSubprocess, buildArgs } from './subprocess'
 import { env } from './env'
-import { YtDlpError, mapYtDlpError, BinaryNotFoundError } from './errors'
+import { YtDlpError, classifyYtDlpError, BinaryNotFoundError } from './errors'
 import { pushLog } from './logger'
 import { getResolvedCookiePath } from './cookie-source'
 import fs from 'node:fs'
@@ -12,6 +12,12 @@ const SENSITIVE_FLAGS = new Set(['--cookies'])
 const JS_RT_ARGS = ['--js-runtimes', 'node', '--remote-components', 'ejs:github']
 
 const COOKIES_TMP = '/tmp/youbox-cookies.txt'
+
+// Аргументы для bgutil PO Token provider. Пусто, если POT_PROVIDER_URL не задан.
+function potArgs(): string[] {
+  if (!env.POT_PROVIDER_URL) return []
+  return ['--extractor-args', `youtubepot-bgutilhttp:base_url=${env.POT_PROVIDER_URL}`]
+}
 
 function cookiesArgs(): string[] {
   const resolved = getResolvedCookiePath()
@@ -131,7 +137,7 @@ export async function extractMetadata(url: string): Promise<ExtractedMetadata> {
     ['--dump-json', '--no-download', '--no-warnings', '--ignore-errors'],
     {},
   )
-  args.push(...cookiesArgs(), ...JS_RT_ARGS, url)
+  args.push(...cookiesArgs(), ...JS_RT_ARGS, ...potArgs(), url)
 
   const sensitiveIndices = findSensitiveIndices(args)
 
@@ -151,7 +157,8 @@ export async function extractMetadata(url: string): Promise<ExtractedMetadata> {
   }
 
   if (result.exitCode !== 0) {
-    throw new YtDlpError(result.stderr, mapYtDlpError(result.stderr), result.stderr)
+    const classified = classifyYtDlpError(result.stderr)
+    throw new YtDlpError(result.stderr, classified.userMessage, result.stderr, classified.code)
   }
 
   const lines = result.stdout.trim().split('\n').filter(Boolean)
@@ -210,7 +217,7 @@ export async function downloadFile(options: DownloadOptions): Promise<DownloadRe
 
   args.push('--no-warnings')
   args.push(...playlistLimitArgs(mode))
-  args.push(...cookiesArgs(), ...JS_RT_ARGS)
+  args.push(...cookiesArgs(), ...JS_RT_ARGS, ...potArgs())
 
   if (formatId) {
     args.push('-f', formatId)
@@ -254,7 +261,8 @@ export async function downloadFile(options: DownloadOptions): Promise<DownloadRe
 
   if (result.exitCode !== 0) {
     pushLog('error', 'yt-dlp', `exit code ${result.exitCode} для ${jobId}: ${result.stderr.slice(0, 200)}`)
-    throw new YtDlpError(result.stderr, mapYtDlpError(result.stderr), result.stderr)
+    const classified = classifyYtDlpError(result.stderr)
+    throw new YtDlpError(result.stderr, classified.userMessage, result.stderr, classified.code)
   }
 
   pushLog('info', 'yt-dlp', `завершено ${jobId}`)

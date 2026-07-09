@@ -12,7 +12,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     pip \
   && rm -rf /var/lib/apt/lists/*
 
-RUN pip install --break-system-packages --no-cache-dir yt-dlp
+# yt-dlp + опциональный плагин для bgutil PO Token provider (используется только если задан POT_PROVIDER_URL)
+RUN pip install --break-system-packages --no-cache-dir yt-dlp bgutil-ytdlp-pot-provider
 
 # ============================================================
 # deps: production node_modules
