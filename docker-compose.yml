@@ -3,6 +3,15 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        - ENABLE_COOKIE_AUTO_REFRESH
+        - COOKIE_REFRESH_INTERVAL_MINUTES
+        - COOKIE_SOURCE_COOLDOWN_MINUTES
+        - GOOGLE_ACCOUNT_1_EMAIL
+        - GOOGLE_ACCOUNT_1_PASSWORD
+        - GOOGLE_ACCOUNT_2_EMAIL
+        - GOOGLE_ACCOUNT_2_PASSWORD
+        - POT_PROVIDER_URL
     image: youbox:latest
     container_name: youbox
     restart: unless-stopped
@@ -62,10 +71,12 @@ services:
     image: youbox-browser:latest
     container_name: youbox-browser
     restart: unless-stopped
+    init: true
     profiles:
       - browser
     ports:
       - "127.0.0.1:3808:3808"
+      - "127.0.0.1:3809:3809"
     expose:
       - "3808"
     # .env содержит GOOGLE_ACCOUNT_*_EMAIL/PASSWORD для авто-логина (только на VPS, не в git).

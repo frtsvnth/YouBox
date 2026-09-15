@@ -40,12 +40,15 @@ function startBrowser() {
       } catch {}
       const browserArgs = [
         '--headless=new',
+        `--remote-debugging-address=0.0.0.0`,
         `--remote-debugging-port=${BROWSER_PORT}`,
         '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage',
         '--disable-gpu', '--no-first-run',
+        '--disable-blink-features=AutomationControlled',
+        '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36',
         '--window-size=1280,720',
         `--user-data-dir=${PROFILE_DIR}`,
-      ].join(' ')
+      ].map(a => `'${a.replace(/'/g, "'\\''")}'`).join(' ')
       console.log('[browser] launching:', browserArgs.slice(0, 120) + '...')
       browserProcess = spawn('/bin/sh', ['-c',
         'nohup /usr/lib/chromium/chromium ' + browserArgs + ' </dev/null >/tmp/chrome.log 2>&1 &'
@@ -316,10 +319,17 @@ async function googleLogin(key) {
     context = await chromium.launchPersistentContext(profileDir, {
       headless: true,
       executablePath: EXECUTABLE_PATH,
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
+      args: [
+        '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu',
+        '--disable-blink-features=AutomationControlled',
+        '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36',
+      ],
       viewport: { width: 1280, height: 800 },
     })
     const page = context.pages()[0] || (await context.newPage())
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, 'webdriver', { get: () => false })
+    })
 
     // Уже залогинены? Тогда логин не нужен.
     await page.goto('https://www.youtube.com', { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {})

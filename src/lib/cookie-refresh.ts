@@ -18,17 +18,32 @@ interface RefreshStatus {
   accounts: AccountRefreshResult[]
 }
 
-let refreshInterval: ReturnType<typeof setInterval> | null = null
-let isRefreshing = false
-const status: RefreshStatus = {
-  enabled: false,
-  lastRunAt: null,
-  lastSuccessAt: null,
-  accounts: [],
+declare global {
+  var __youbox_cookie_refresh: {
+    interval: ReturnType<typeof setInterval> | null
+    isRefreshing: boolean
+    status: RefreshStatus
+  } | undefined
+}
+
+function getState() {
+  if (!globalThis.__youbox_cookie_refresh) {
+    globalThis.__youbox_cookie_refresh = {
+      interval: null,
+      isRefreshing: false,
+      status: {
+        enabled: false,
+        lastRunAt: null,
+        lastSuccessAt: null,
+        accounts: [],
+      },
+    }
+  }
+  return globalThis.__youbox_cookie_refresh
 }
 
 export function getLastRefreshStatus(): RefreshStatus {
-  return status
+  return getState().status
 }
 
 function isEnabled(): boolean {
@@ -78,15 +93,16 @@ async function refreshAccount(account: string): Promise<AccountRefreshResult> {
 }
 
 export async function refreshAll(): Promise<void> {
-  if (!isEnabled() || isRefreshing) return
-  isRefreshing = true
-  status.lastRunAt = Math.floor(Date.now() / 1000)
+  const state = getState()
+  if (!isEnabled() || state.isRefreshing) return
+  state.isRefreshing = true
+  state.status.lastRunAt = Math.floor(Date.now() / 1000)
 
   try {
     const accounts = await fetchAccounts()
     if (accounts.length === 0) {
       pushLog('warn', 'cookie-refresh', 'sidecar не вернул ни одного аккаунта')
-      status.accounts = []
+      state.status.accounts = []
       return
     }
 
@@ -101,21 +117,22 @@ export async function refreshAll(): Promise<void> {
       }
     }
 
-    status.accounts = results
+    state.status.accounts = results
     if (results.some((r) => r.ok)) {
-      status.lastSuccessAt = Math.floor(Date.now() / 1000)
+      state.status.lastSuccessAt = Math.floor(Date.now() / 1000)
       ensureSomeActiveSource()
     }
   } catch (err) {
     pushLog('error', 'cookie-refresh', `ошибка планировщика: ${err instanceof Error ? err.message : String(err)}`)
   } finally {
-    isRefreshing = false
+    state.isRefreshing = false
   }
 }
 
 export function startCookieRefresh(): void {
-  status.enabled = isEnabled()
-  if (!status.enabled) {
+  const state = getState()
+  state.status.enabled = isEnabled()
+  if (!state.status.enabled) {
     pushLog('info', 'cookie-refresh', 'авто-обновление cookies выключено')
     return
   }
@@ -125,12 +142,13 @@ export function startCookieRefresh(): void {
 
   // Первый прогон с небольшой задержкой, чтобы sidecar успел подняться.
   setTimeout(() => { void refreshAll() }, 30000)
-  refreshInterval = setInterval(() => { void refreshAll() }, intervalMs)
+  state.interval = setInterval(() => { void refreshAll() }, intervalMs)
 }
 
 export function stopCookieRefresh(): void {
-  if (refreshInterval) {
-    clearInterval(refreshInterval)
-    refreshInterval = null
+  const state = getState()
+  if (state.interval) {
+    clearInterval(state.interval)
+    state.interval = null
   }
 }
