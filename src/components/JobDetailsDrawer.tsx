@@ -1,10 +1,12 @@
 'use client'
 
+import { useState } from 'react'
 import type { Job } from '@/types'
 import { Drawer } from '@/components/ui/Drawer'
 import { Badge } from '@/components/ui/Badge'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import { Button } from '@/components/ui/Button'
+import { VideoFramePlayer } from '@/components/VideoFramePlayer'
 
 const STATUS_CONFIG: Record<string, { label: string; variant: 'default' | 'success' | 'warning' | 'error' | 'info' | 'neutral' }> = {
   created: { label: 'Создано', variant: 'neutral' },
@@ -63,10 +65,12 @@ interface Props {
 }
 
 export function JobDetailsDrawer({ job, open, onClose, onCancel, onDelete, onRetry, onReRun }: Props) {
+  const [viewerOpen, setViewerOpen] = useState(false)
   if (!job) return null
   const j = job
 
   const config = STATUS_CONFIG[j.status] || STATUS_CONFIG.created
+  const canPreview = j.status === 'ready' && j.format !== 'mp3'
   const isActive = ['queued', 'downloading', 'muxing', 'extracting'].includes(j.status)
   const isProgressing = ['downloading', 'muxing'].includes(j.status)
   const showProgress = isProgressing || j.status === 'extracting'
@@ -158,6 +162,15 @@ export function JobDetailsDrawer({ job, open, onClose, onCancel, onDelete, onRet
               Скачать файл
             </Button>
           )}
+          {canPreview && (
+            <Button variant="secondary" size="md" onClick={() => setViewerOpen(true)}>
+              <svg width="14" height="14" viewBox="0 0 15 15" fill="none">
+                <path d="M1 7.5S3.5 3 7.5 3s6.5 4.5 6.5 4.5-2.5 4.5-6.5 4.5S1 7.5 1 7.5z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                <circle cx="7.5" cy="7.5" r="2" stroke="currentColor" strokeWidth="1.3" />
+              </svg>
+              Просмотреть покадрово
+            </Button>
+          )}
           {isActive && onCancel && (
             <Button variant="danger" size="md" onClick={() => onCancel(j.id)}>
               Отменить
@@ -180,6 +193,14 @@ export function JobDetailsDrawer({ job, open, onClose, onCancel, onDelete, onRet
           )}
         </div>
       </div>
+
+      {viewerOpen && (
+        <VideoFramePlayer
+          jobId={j.id}
+          title={j.title}
+          onClose={() => setViewerOpen(false)}
+        />
+      )}
     </Drawer>
   )
 }

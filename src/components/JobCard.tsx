@@ -1,8 +1,10 @@
 'use client'
 
+import { useState } from 'react'
 import type { Job } from '@/types'
 import { Badge } from '@/components/ui/Badge'
 import { ProgressBar } from '@/components/ui/ProgressBar'
+import { VideoFramePlayer } from '@/components/VideoFramePlayer'
 
 const STATUS_CONFIG: Record<string, { label: string; variant: 'default' | 'success' | 'warning' | 'error' | 'info' | 'neutral' }> = {
   created: { label: 'Создано', variant: 'neutral' },
@@ -67,6 +69,8 @@ interface Props {
 
 export function JobCard({ job, onCancel, onDelete, onRetry, onReRun, onClick, compact, fresh }: Props) {
   const config = STATUS_CONFIG[job.status] || STATUS_CONFIG.created
+  const [viewerOpen, setViewerOpen] = useState(false)
+  const canPreview = job.status === 'ready' && job.format !== 'mp3'
 
   const isProgressing = ['downloading', 'muxing'].includes(job.status)
 
@@ -101,6 +105,11 @@ export function JobCard({ job, onCancel, onDelete, onRetry, onReRun, onClick, co
     const a = document.createElement('a')
     a.href = `/api/download/${job.id}`
     a.click()
+  }
+
+  const handleView = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setViewerOpen(true)
   }
 
   return (
@@ -185,6 +194,19 @@ export function JobCard({ job, onCancel, onDelete, onRetry, onReRun, onClick, co
         </div>
 
         <div className="flex items-center gap-1 shrink-0">
+          {canPreview && (
+            <button
+              onClick={handleView}
+              className="p-1.5 text-text-secondary hover:text-accent rounded-md transition-colors"
+              aria-label="Просмотреть"
+              title="Просмотреть покадрово"
+            >
+              <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+                <path d="M1 7.5S3.5 3 7.5 3s6.5 4.5 6.5 4.5-2.5 4.5-6.5 4.5S1 7.5 1 7.5z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                <circle cx="7.5" cy="7.5" r="2" stroke="currentColor" strokeWidth="1.3" />
+              </svg>
+            </button>
+          )}
           {job.status === 'ready' && (
             <button
               onClick={handleDownload}
@@ -247,6 +269,16 @@ export function JobCard({ job, onCancel, onDelete, onRetry, onReRun, onClick, co
           )}
         </div>
       </div>
+
+      {viewerOpen && (
+        <div onClick={(e) => e.stopPropagation()}>
+          <VideoFramePlayer
+            jobId={job.id}
+            title={job.title}
+            onClose={() => setViewerOpen(false)}
+          />
+        </div>
+      )}
     </div>
   )
 }
