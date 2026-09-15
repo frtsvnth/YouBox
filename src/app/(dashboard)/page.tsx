@@ -29,6 +29,7 @@ export default function DashboardPage() {
   const [refreshKey, setRefreshKey] = useState(0)
   const [activeCount, setActiveCount] = useState(0)
 
+  const [urlInput, setUrlInput] = useState('')
   const [extracting, setExtracting] = useState(false)
   const [extractError, setExtractError] = useState('')
   const [metadata, setMetadata] = useState<ExtractedMetadata | null>(null)
@@ -49,6 +50,7 @@ export default function DashboardPage() {
   const lastUrlRef = useRef('')
 
   async function handleExtract(url: string) {
+    setUrlInput(url)
     setExtractError('')
     setMetadata(null)
     setExtracting(true)
@@ -120,6 +122,7 @@ export default function DashboardPage() {
       if (res.status === 409) {
         setRefreshKey((k) => k + 1)
         setMetadata(null)
+        setUrlInput('')
         return
       }
 
@@ -127,6 +130,7 @@ export default function DashboardPage() {
 
       setRefreshKey((k) => k + 1)
       setMetadata(null)
+      setUrlInput('')
     } catch (err) {
       setExtractError(err instanceof Error ? err.message : 'Не удалось создать задачу')
     } finally {
@@ -237,7 +241,7 @@ export default function DashboardPage() {
 
         <main className="flex-1 max-w-3xl w-full mx-auto px-4 py-6">
           <div className="flex flex-col gap-4">
-            <URLBar onExtract={handleExtract} extracting={extracting} />
+            <URLBar onExtract={handleExtract} extracting={extracting} value={urlInput} onChange={setUrlInput} />
 
             {extractError && (
               <div className="bg-error-subtle border border-error/20 rounded-lg px-4 py-3">

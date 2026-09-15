@@ -1,20 +1,20 @@
 'use client'
 
-import { useState, type FormEvent } from 'react'
+import type { FormEvent } from 'react'
 import { Button } from '@/components/ui/Button'
 
 interface Props {
   onExtract: (url: string) => Promise<void>
   extracting: boolean
+  value: string
+  onChange: (value: string) => void
 }
 
-export function URLBar({ onExtract, extracting }: Props) {
-  const [url, setUrl] = useState('')
-
+export function URLBar({ onExtract, extracting, value, onChange }: Props) {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!url.trim() || extracting) return
-    await onExtract(url.trim())
+    if (!value.trim() || extracting) return
+    await onExtract(value.trim())
   }
 
   return (
@@ -33,14 +33,14 @@ export function URLBar({ onExtract, extracting }: Props) {
           </svg>
           <input
             type="url"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
             placeholder="Вставьте ссылку на видео или плейлист..."
             className="w-full pl-9 pr-3.5 py-2.5 bg-input border border-border rounded-input text-sm text-text-primary placeholder:text-text-tertiary
               focus:outline-none focus:ring-2 focus:ring-accent-ring focus:border-accent transition-all duration-150"
           />
         </div>
-        <Button type="submit" disabled={!url.trim() || extracting} loading={extracting}>
+        <Button type="submit" disabled={!value.trim() || extracting} loading={extracting}>
           Показать варианты
         </Button>
       </div>
