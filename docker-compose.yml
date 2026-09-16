@@ -15,6 +15,7 @@ services:
     image: youbox:latest
     container_name: youbox
     restart: unless-stopped
+    init: true
 
     ports:
       - "127.0.0.1:3007:3007"
