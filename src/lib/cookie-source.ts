@@ -501,8 +501,6 @@ export async function validateCookiesViaDownload(path: string): Promise<{ valid:
       bin: 'yt-dlp',
       args: [
         '--cookies', path,
-        '--js-runtimes', 'node',
-        '--remote-components', 'ejs:github',
         ...potArgs,
         '--no-warnings',
         '--dump-json',

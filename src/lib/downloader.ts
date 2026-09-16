@@ -9,7 +9,13 @@ import type { ExtractedMetadata, FormatInfo, ExtractedEntry, OutputFormat, Downl
 
 const SENSITIVE_FLAGS = new Set(['--cookies'])
 
-const JS_RT_ARGS = ['--js-runtimes', 'node', '--remote-components', 'ejs:github']
+// --js-runtimes node --remote-components ejs:github отключён: в этом окружении
+// (yt-dlp 2026.08.19 + Node 22) дочерний node-процесс для решения JS-челленджа
+// зависает навсегда (проверено вручную — 100с без единого байта вывода), из-за
+// чего extractMetadata/downloadFile всегда упирались в собственный таймаут.
+// Без флага yt-dlp по-прежнему извлекает форматы (с предупреждением о deprecated
+// "extraction without a JS runtime"), просто без JS-решателя челленджей.
+const JS_RT_ARGS: string[] = []
 
 const COOKIES_TMP = '/tmp/youbox-cookies.txt'
 
