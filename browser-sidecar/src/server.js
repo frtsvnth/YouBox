@@ -14,6 +14,8 @@ fs.mkdirSync(PROFILE_DIR, { recursive: true })
 let browserProcess = null
 let browserRunning = false
 let browserError = null
+let currentProfileKey = null
+let currentProfileDir = null
 
 function cdpFetch(path) {
   return new Promise((resolve) => {
@@ -25,16 +27,20 @@ function cdpFetch(path) {
   })
 }
 
-function startBrowser() {
+// profileDir — куда положить профиль отлаживаемого Chromium (по умолчанию корневой,
+// либо PROFILE_DIR/account-N — тот же профиль, что использует googleLogin() для
+// автообновления, чтобы ручной вход через chrome://inspect засчитался и для него).
+function startBrowser(profileDir = PROFILE_DIR) {
   return new Promise(async (resolve) => {
     try {
+      fs.mkdirSync(profileDir, { recursive: true })
       try {
         execSync('pkill -f "chromium.*remote-debugging" 2>/dev/null || true')
         await new Promise(r => setTimeout(r, 1000))
       } catch {}
       try {
         for (const f of ['Chromium', 'SingletonLock', 'SingletonSocket', 'SingletonCookie']) {
-          const p = path.join(PROFILE_DIR, f)
+          const p = path.join(profileDir, f)
           if (fs.existsSync(p)) fs.unlinkSync(p)
         }
       } catch {}
@@ -47,7 +53,7 @@ function startBrowser() {
         '--disable-blink-features=AutomationControlled',
         '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36',
         '--window-size=1280,720',
-        `--user-data-dir=${PROFILE_DIR}`,
+        `--user-data-dir=${profileDir}`,
       ].map(a => `'${a.replace(/'/g, "'\\''")}'`).join(' ')
       console.log('[browser] launching:', browserArgs.slice(0, 120) + '...')
       browserProcess = spawn('/bin/sh', ['-c',
@@ -117,32 +123,42 @@ code{display:block;background:#09090b;padding:8px;border-radius:6px;font-size:12
 .sb{font-size:13px;color:#a1a1aa;line-height:1.5}.sb s{color:#fafafa}
 .m{padding:8px 12px;border-radius:6px;font-size:13px;margin-top:12px;display:none}
 .m.ok{display:block;background:#34d39915;color:#34d399}.m.bad{display:block;background:#f8717115;color:#f87171}
+select{display:block;width:100%;padding:9px 10px;margin-bottom:10px;background:#09090b;color:#fafafa;border:1px solid #27272a;border-radius:8px;font-size:13px}
 </style></head><body>
 <div class=card>
 <h1>YouBox Browser</h1>
 <p class=sub>Удалённый браузер для входа в YouTube</p>
 <div class=stat><span class="dot" id=dt></span><span id=st>Загрузка...</span></div>
+<select id=acct><option value="">Общий профиль (без аккаунта)</option></select>
 <button class="btn p" id=ob onclick="ob()">Открыть браузер и YouTube</button>
 <button class="btn s" id=eb onclick="ex()">Экспортировать cookies</button>
 <div id=instr style="margin-top:24px"></div>
 <div id=msg class=m></div></div>
 <script>
+async function loadAccounts(){try{const r=await fetch('/accounts');const d=await r.json();
+const sel=document.getElementById('acct');
+for(const a of (d.accounts||[])){const o=document.createElement('option');o.value=a;o.textContent=a;sel.appendChild(o)}
+}catch(e){}}
 async function rf(){try{const r=await fetch('/status');const d=await r.json();
 document.getElementById('dt').className='dot '+(d.running?'g':d.profileExists?'y':'r');
-document.getElementById('st').textContent=d.running?'Browser running'+(d.cdpPort?' on port '+d.cdpPort:''):d.profileExists?'Profile exists':'Browser not started';
+const profileLabel=d.activeProfile&&d.activeProfile!=='root'?' ('+d.activeProfile+')':'';
+document.getElementById('st').textContent=d.running?'Browser running'+profileLabel+(d.cdpPort?' on port '+d.cdpPort:''):d.profileExists?'Profile exists':'Browser not started';
 let html='';if(d.running){html=\`<div style="font-weight:600;font-size:13px;margin-bottom:12px">How to connect:</div>
 <div class=st><div class=sn>1</div><div class=sb>Run in terminal:<code>ssh -L 3808:localhost:3808 root@youbox.pupupu.cloud</code></div></div>
 <div class=st><div class=sn>2</div><div class=sb>Open chrome://inspect in Chrome, add localhost:3808, click inspect on YouTube tab</div></div>
-<div class=st><div class=sn>3</div><div class=sb>Log in, then click "Export cookies" above</div></div>\`}
+<div class=st><div class=sn>3</div><div class=sb>Log in (пройдите 2FA если есть), then click "Export cookies" above</div></div>\`}
 document.getElementById('instr').innerHTML=html}catch(e){}
 setTimeout(rf,5000)}
 async function ob(){document.getElementById('ob').disabled=true;document.getElementById('ob').textContent='Starting...';
-await fetch('/open-youtube',{method:'POST'});document.getElementById('ob').disabled=false;document.getElementById('ob').textContent='Open browser and YouTube';rf()}
+const account=document.getElementById('acct').value;
+await fetch('/open-youtube',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(account?{account}:{})});
+document.getElementById('ob').disabled=false;document.getElementById('ob').textContent='Open browser and YouTube';rf()}
 async function ex(){document.getElementById('eb').disabled=true;document.getElementById('eb').textContent='Exporting...';
-try{const r=await fetch('/export',{method:'POST'});if(r.ok)show('Cookies exported!','ok');else show(await r.text(),'bad')}catch(e){show(e.message,'bad')}
+const profile=document.getElementById('acct').value;
+try{const r=await fetch('/export',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(profile?{profile}:{})});if(r.ok)show('Cookies exported!','ok');else show(await r.text(),'bad')}catch(e){show(e.message,'bad')}
 document.getElementById('eb').disabled=false;document.getElementById('eb').textContent='Export cookies'}
 function show(t,c){const e=document.getElementById('msg');e.textContent=t;e.className='m '+c;setTimeout(()=>e.style.display='none',5000)}
-rf()
+loadAccounts();rf()
 </script></body></html>`
 
 app.get('/', (_req, res) => res.type('html').send(LANDING))
@@ -197,18 +213,36 @@ app.get('/status', async (_req, res) => {
     const json = await cdpFetch('/json')
     if (json) { try { pages = JSON.parse(json).map(p => ({ url: p.url, title: p.title })) } catch {} }
   }
-  res.json({ running: browserRunning, profileExists, cdpPort: browserRunning ? BROWSER_PORT : null, pages, error: browserError })
+  res.json({
+    running: browserRunning,
+    profileExists,
+    cdpPort: browserRunning ? BROWSER_PORT : null,
+    pages,
+    error: browserError,
+    activeProfile: browserRunning ? currentProfileKey : null,
+  })
 })
 
-app.post('/open-youtube', async (_req, res) => {
-  if (!browserRunning || !browserProcess) {
-    const ok = await startBrowser()
+// Открывает отладочный Chromium в конкретном профиле. Без `account` — общий (корневой)
+// профиль. С `account: "account-N"` — тот же профиль, что использует googleLogin() для
+// автологина: ручной вход (включая 2FA) через chrome://inspect в этом режиме "приживётся"
+// и для последующего автообновления cookies того же аккаунта.
+app.post('/open-youtube', async (req, res) => {
+  const accountKey = req.body && req.body.account ? String(req.body.account) : null
+  const targetKey = accountKey && /^account-\d+$/.test(accountKey) ? accountKey : 'root'
+  const targetDir = targetKey === 'root' ? PROFILE_DIR : profileDirFor(targetKey)
+  if (!targetDir) return res.status(400).json({ ok: false, error: 'Некорректный ключ аккаунта' })
+
+  if (!browserRunning || !browserProcess || currentProfileKey !== targetKey) {
+    const ok = await startBrowser(targetDir)
     if (!ok) return res.status(500).json({ ok: false, error: browserError })
+    currentProfileKey = targetKey
+    currentProfileDir = targetDir
   }
-  console.log('[browser] navigating to YouTube...')
+  console.log(`[browser] navigating to YouTube (profile: ${targetKey})...`)
   await cdpNavigate('https://www.youtube.com')
   console.log('[browser] navigation done')
-  res.json({ ok: true })
+  res.json({ ok: true, profile: targetKey })
 })
 
 const NETSCAPE_HEADER = '# Netscape HTTP Cookie File\n# https://curl.haxx.se/rfc/cookie_spec.html\n# Generated by YouBox\n'
