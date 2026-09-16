@@ -152,7 +152,7 @@ export async function extractMetadata(url: string): Promise<ExtractedMetadata> {
     result = await runSubprocess({
       bin: 'yt-dlp',
       args,
-      timeout: 30000,
+      timeout: 45000,
       sensitiveArgIndices: sensitiveIndices,
     })
   } catch (err) {

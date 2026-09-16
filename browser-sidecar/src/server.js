@@ -347,6 +347,16 @@ async function googleLogin(key) {
   if (!profileDir) return { ok: false, error: `Некорректный ключ аккаунта: ${key}` }
   fs.mkdirSync(profileDir, { recursive: true })
 
+  // Если предыдущий запуск был убит аварийно (например, хост захлебнулся под нагрузкой),
+  // в профиле могут остаться Singleton-lock файлы от Chromium, из-за которых новый запуск
+  // падает с "Can't open display" / не стартует вовсе.
+  for (const f of ['SingletonLock', 'SingletonSocket', 'SingletonCookie']) {
+    try {
+      const p = path.join(profileDir, f)
+      if (fs.existsSync(p)) fs.unlinkSync(p)
+    } catch { /* ignore */ }
+  }
+
   const { chromium } = await import('playwright-core')
   let context
   try {
