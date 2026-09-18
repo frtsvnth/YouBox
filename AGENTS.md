@@ -80,6 +80,8 @@ src/
 │   │   ├── [id]/retry/route.ts        # POST /api/jobs/:id/retry
 │   │   └── [id]/delete/route.ts       # POST /api/jobs/:id/delete
 │   ├── api/download/[id]/route.ts     # GET /api/download/:id
+│   ├── api/jobs/[id]/stream/route.ts  # GET /api/jobs/:id/stream (Range-стриминг для <video>)
+│   ├── api/jobs/[id]/probe/route.ts   # GET /api/jobs/:id/probe (fps/duration через ffprobe)
 │   ├── api/logs/route.ts              # GET /api/logs?after=N, POST (clear)
 │   ├── api/health/route.ts            # GET /api/health (публичный)
 │   └── api/cleanup/route.ts           # POST /api/cleanup
@@ -107,7 +109,8 @@ src/
 │   ├── PlaylistConfirmDialog.tsx      # Подтверждение большого плейлиста
 │   ├── SettingsPanel.tsx              # Панель настроек: cookie sources, browser session
 │   ├── ThemeToggle.tsx                # Переключатель dark/light
-│   └── URLBar.tsx                     # URL input + "Показать варианты"
+│   ├── URLBar.tsx                     # URL input + "Показать варианты" (value/onChange — состояние в родителе)
+│   └── VideoFramePlayer.tsx           # Покадровый плеер: video+Range-стрим, шаг кадра (←/→), сохранение кадра в PNG через canvas
 ├── lib/
 │   ├── db.ts          # SQLite + миграции (v1-v6: +cookie_sources, +app_settings)
 │   ├── auth.ts        # APP_PIN_HASH, сессии, timingSafeEqual + COOKIE_SECURE
@@ -151,6 +154,8 @@ src/
 | `/api/cookie-source/:id/delete` | POST | Да | Удалить источник |
 | `/api/cookie-source/browser-status` | GET | Да | Статус browser sidecar |
 | `/api/cookie-source/browser-export` | POST | Да | Экспорт cookies из sidecar |
+| `/api/jobs/:id/stream` | GET | Да | Стрим готового видео с поддержкой Range (для `<video>`) |
+| `/api/jobs/:id/probe` | GET | Да | fps/duration/width/height через ffprobe (fallback fps=30) |
 
 ### Cookie Source Subsystem (v0.2)
 
@@ -172,7 +177,7 @@ src/
 - **APP_PIN_HASH**: В ENV кладётся готовый SHA-256 хеш, plaintext PIN нигде не хранится
 - **Lockout**: После LOGIN_MAX_ATTEMPTS неудачных попыток — блокировка на LOGIN_LOCKOUT_DURATION секунд
 - **COOKIE_SECURE**: Управляется через ENV, а не NODE_ENV. `false` для HTTP, `true` для HTTPS
-- **yt-dlp + JS runtime**: YouTube требует JS challenge solving. В коде передаются `--js-runtimes node --remote-components ejs:github`
+- **yt-dlp без JS runtime**: `--js-runtimes node --remote-components ejs:github` **намеренно не используется** — в связке yt-dlp 2026.08.19 + Node 22 дочерний node-процесс для решения JS-челленджа зависает навсегда (проверено вручную). Извлечение форматов по-прежнему работает без него (с deprecation-предупреждением от yt-dlp); анти-бот обходится через PO Token provider (bgutil), если `POT_PROVIDER_URL` настроен
 - **Cookies в /tmp**: yt-dlp пытается сохранять куки при выходе. Приложение копирует файл в `/tmp/youbox-cookies.txt` перед вызовом, чтобы оригинал остался нетронутым
 - **subprocess.ts**: Единый безопасный adapter, shell: false, чувствительные аргументы не логируются
 - **errors.ts**: Иерархия AppError → ValidationError / AuthError / YtDlpError / RateLimitError / LockoutError. mapYtDlpError мапит stderr в user-friendly русские сообщения
@@ -180,6 +185,9 @@ src/
 - **Хранение файлов**: /data/downloads для готовых, /data/tmp для временных (bind mount, не named volume)
 - **Логирование**: In-memory кольцевой буфер (500 записей) на globalThis — общий для всех модулей Next.js. pushLog/getLogs/clearLogs. GET /api/logs?after=N для polling, POST /api/logs для очистки.
 - **Удаление задач**: POST /api/jobs/:id/delete — удаляет запись из БД + чистит tmp и download файлы. Кнопка удаления на JobCard и в JobDetailsDrawer.
+- **Деплой через GHCR, не сборка на сервере**: VPS ограничен по CPU (шарится с ~20 сервисами) — `docker compose build` на нём регулярно давал устойчивые пики нагрузки и однажды привёл к приостановке VPS хостером. Образ собирается локально/в CI (`docker buildx build --platform linux/amd64 --push`) и пушится в публичный `ghcr.io/frtsvnth/youbox`, на сервере — только `docker compose pull` + `up -d`. Подробности и причина — в DEPLOY.md
+- **`init: true` в docker-compose.yml**: у обоих контейнеров (`youbox`, `youbox-browser`) — без этого PID 1 (node) не reap'ит зомби-процессы от дочерних subprocess/Chromium; без `init` зомби накапливались без ограничений (на проде однажды дошло до 3069 штук и уронило docker на всём VPS)
+- **Ручной вход в конкретный account-N профиль**: `/open-youtube` sidecar'а принимает `{ account: "account-N" }` и поднимает отладочный Chromium в том же профиле, которым пользуется автологин — нужно для аккаунтов с 2FA (пароль+код автоматика не проходит, но профиль с уже открытой сессией — да). Подробности — в docs/COOKIES.md
 
 ### UI / Дизайн-система
 - **Тёмная и светлая тема**: CSS-переменные, переключение через `ThemeContext` + localStorage, класс `.dark`/`.light` на `<html>`
@@ -200,6 +208,8 @@ src/
 - **История задач**: Drawer со всеми задачами, группировка по статусу, re-run
 - **Удаление задач**: Иконка корзины на JobCard (ready/failed/expired) + кнопка "Удалить" в JobDetailsDrawer. DELETE из БД + файлы с диска.
 - **Логи**: Drawer (LogPanel) с polling 1.5с. In-memory буфер на globalThis. Уровни debug/info/warn/error. Очистка по кнопке.
+- **URLBar — controlled**: `value`/`onChange` вместо внутреннего state, чтобы дашборд мог очищать поле сразу после старта задачи
+- **Покадровый плеер (`VideoFramePlayer`)**: для готовых видео (`format !== 'mp3'`) — кнопка «Просмотреть» на JobCard/JobDetailsDrawer. `<video>` через `/api/jobs/:id/stream` (Range), бегунок, шаг на 1 кадр (`1/fps` из `/api/jobs/:id/probe`, стрелки/пробел), сохранение текущего кадра в PNG через canvas — без обращения к серверу на каждый кадр
 
 ## Жизненный цикл задачи
 

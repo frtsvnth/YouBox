@@ -414,9 +414,11 @@ youbox/
 ```yaml
 services:
   youbox:
-    build: .
+    build: .                                   # локальная сборка (dev); в проде используется image
+    image: ghcr.io/frtsvnth/youbox:latest       # прод тянет готовый образ, не собирает
+    init: true                                  # PID 1 = tini, reap'ит зомби-процессы
     ports:
-      - "${PORT:-3007}:3007"
+      - "127.0.0.1:3007:3007"                   # наружу не торчит, только через Traefik
     env_file: .env
     environment:
       - YT_COOKIES_FILE=/cookies/cookies.txt  # переопределяет .env внутри контейнера
@@ -433,6 +435,11 @@ services:
 ```
 
 ### Процесс деплоя
-1. `git push` на VPS
-2. `docker compose up -d --build` на VPS
-3. Данные сохраняются в named volume
+Образ **не собирается на сервере** — VPS ограничен по CPU, сборка (npm ci +
+next build) регулярно давала устойчивые пики нагрузки и однажды привела
+к приостановке VPS хостером за перегруз. Подробности — в DEPLOY.md,
+раздел «Почему образ не собирается на сервере».
+
+1. Локально/в CI: `docker buildx build --platform linux/amd64 -t ghcr.io/frtsvnth/youbox:latest --push .`
+2. На VPS: `git pull` (код/конфиги) → `docker compose pull youbox` → `docker compose up -d`
+3. Данные (`/data`) — bind mount `./data:/data` на хосте, не volume; переживают пересоздание контейнера, но не переезд на другой хост без переноса каталога

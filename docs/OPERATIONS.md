@@ -43,7 +43,7 @@ curl -s -o /dev/null -w "%{http_code}" http://localhost:3007/api/health
 - **Cookies не настроены** — загрузите cookies.txt через UI Настроек, настройте browser session или укажите `YT_COOKIES_FILE` в `.env`
 - **Активный источник cookies отсутствует на диске** — статус источника сменится на `missing`. Загрузите новый cookies.txt через UI или активируйте другой источник
 - **Browser sidecar недоступен** — проверьте контейнер: `docker compose --profile browser ps`. Убедитесь, что `ENABLE_BROWSER_COOKIE_SOURCE=true` и `BROWSER_COOKIE_SERVICE_URL` настроены
-- **yt-dlp не установлен** — пересоберите образ (`docker compose build --pull`)
+- **yt-dlp не установлен** — соберите свежий образ локально и запушьте (`docker buildx build --platform linux/amd64 -t ghcr.io/frtsvnth/youbox:latest --push .`), затем на сервере `docker compose pull youbox && docker compose up -d`. Не пересобирайте образ на самом VPS — см. «Почему образ не собирается на сервере» в DEPLOY.md
 
 Контейнер продолжает работать, но функциональность может быть ограничена.
 
@@ -167,10 +167,14 @@ cd /opt/youbox
 
 ### Что делает `deploy.sh --update`
 
+Перед запуском на своей машине/в CI: собрать и запушить свежий образ
+(`docker buildx build --platform linux/amd64 -t ghcr.io/frtsvnth/youbox:latest --push .`).
+На сервере скрипт:
+
 1. Бэкап БД
 2. `git pull` (если есть .git)
-3. `docker compose build --pull --no-cache`
-4. `docker compose up -d --force-recreate`
+3. `docker compose pull youbox` — скачивает готовый образ, **не собирает**
+4. `docker compose up -d --force-recreate youbox`
 5. `docker image prune -f`
 
 ### Обновление только yt-dlp
@@ -199,13 +203,18 @@ JS runtime для расшифровки форматов — node.js встро
 
 ### Вручную
 
+Образ не собирается на сервере — откат означает пул более старого образа
+по digest из истории пакета (https://github.com/frtsvnth/YouBox/pkgs/container/youbox),
+не пересборку старого кода:
+
 ```bash
-# 1. Откатить код (если используется git)
+# 1. Откатить код (git — для истории/справки, не для пересборки)
 git checkout <previous-tag-or-commit>
 
-# 2. Пересобрать и запустить
-docker compose build
-docker compose up -d --force-recreate
+# 2. Скачать и запустить конкретную старую версию образа
+docker pull ghcr.io/frtsvnth/youbox@sha256:<digest>
+docker tag ghcr.io/frtsvnth/youbox@sha256:<digest> ghcr.io/frtsvnth/youbox:latest
+docker compose up -d --force-recreate youbox
 
 # 3. Если нужно откатить БД — восстановите из бэкапа
 docker compose stop youbox
