@@ -3,16 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      args:
-        - ENABLE_COOKIE_AUTO_REFRESH
-        - COOKIE_REFRESH_INTERVAL_MINUTES
-        - COOKIE_SOURCE_COOLDOWN_MINUTES
-        - GOOGLE_ACCOUNT_1_EMAIL
-        - GOOGLE_ACCOUNT_1_PASSWORD
-        - GOOGLE_ACCOUNT_2_EMAIL
-        - GOOGLE_ACCOUNT_2_PASSWORD
-        - POT_PROVIDER_URL
-    image: youbox:latest
+    image: ghcr.io/frtsvnth/youbox:latest
     container_name: youbox
     restart: unless-stopped
     init: true
@@ -69,7 +60,7 @@ services:
     build:
       context: ./browser-sidecar
       dockerfile: Dockerfile
-    image: youbox-browser:latest
+    image: ghcr.io/frtsvnth/youbox-browser:latest
     container_name: youbox-browser
     restart: unless-stopped
     init: true
