@@ -107,9 +107,17 @@ youbox → [youbox_internal + root_default] → Traefik
 
 ### 5. Запуск
 
+Образ не собирается на сервере (VPS ограничен по CPU — сборка регулярно
+давала устойчивые пики нагрузки, и хостер троттлил/приостанавливал сервер
+за перегруз). Собираем локально/в CI и пушим в GHCR, на сервере — только pull:
+
 ```bash
-# Сборка и запуск
-docker compose build
+# На своей машине (или в CI), один раз перед деплоем:
+docker buildx build --platform linux/amd64 \
+  -t ghcr.io/frtsvnth/youbox:latest -f Dockerfile --push .
+
+# На сервере:
+docker compose pull youbox
 docker compose up -d
 
 # Проверка
@@ -179,17 +187,24 @@ curl -s http://localhost:8080/api/http/routers | python3 -m json.tool | grep -A2
 ## Обновление приложения
 
 ```bash
+# На своей машине: собрать и запушить новый образ (см. раздел «5. Запуск»)
+docker buildx build --platform linux/amd64 \
+  -t ghcr.io/frtsvnth/youbox:latest -f Dockerfile --push .
+```
+
+```bash
+# На сервере:
 cd /opt/youbox
 
 # 1. Бэкап
 ./deploy/backup.sh
 
-# 2. Pull новых изменений
+# 2. Pull новых изменений кода (docker-compose.yml, .env и т.п.)
 git pull
 
-# 3. Пересборка и перезапуск
-docker compose build --pull
-docker compose up -d --force-recreate
+# 3. Скачать свежий образ и перезапустить
+docker compose pull youbox
+docker compose up -d --force-recreate youbox
 
 # 4. Очистка старых образов
 docker image prune -f
@@ -388,6 +403,21 @@ docker system prune -f
 - Убедитесь, что `YOUBOX_HOST` в `.env` совпадает с именем в A-записи
 - Подождите TTL (300 секунд = 5 минут)
 - Проверьте: `dig youbox.example.com +short`
+
+---
+
+## Почему образ не собирается на сервере
+
+VPS ограничен по CPU (шарится с ~20 другими сервисами). Сборка Docker-образа
+(`npm ci` + `next build`) регулярно давала устойчивый load average 10-18+
+на 2 ядра — хостер троттлил сервер, а один раз приостановил VPS на
+несколько дней за системный перегруз.
+
+Поэтому: образ собирается локально (`docker buildx build --platform
+linux/amd64 --push`) или в CI, пушится в `ghcr.io/frtsvnth/youbox`
+(публичный пакет — секретов в образе нет), на сервере — только
+`docker compose pull` + `up -d`. Никогда не запускайте `docker compose
+build`/`up --build` на проде.
 
 ---
 

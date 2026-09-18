@@ -3,6 +3,16 @@
 # deploy.sh — первый деплой или обновление YouBox на VPS
 # ============================================================
 #
+# Образ НЕ собирается на сервере — VPS ограничен по CPU, и сборка
+# (npm ci/npm run build) регулярно давала устойчивые пики нагрузки,
+# из-за которых хостер троттлил/приостанавливал сервер. Образ
+# собирается локально или в CI и пушится в ghcr.io/frtsvnth/youbox,
+# сервер только скачивает готовый.
+#
+# Перед деплоем на своей машине:
+#   docker buildx build --platform linux/amd64 \
+#     -t ghcr.io/frtsvnth/youbox:latest -f Dockerfile --push .
+#
 # Предполагается, что:
 #   - Docker и Docker Compose установлены
 #   - Репозиторий склонирован в /opt/youbox
@@ -10,8 +20,8 @@
 #
 # Использование:
 #   sudo ./deploy/deploy.sh            # первый деплой
-#   sudo ./deploy/deploy.sh --update   # обновление с пересборкой
-#   sudo ./deploy/deploy.sh --rollback # откат на предыдущий образ
+#   sudo ./deploy/deploy.sh --update   # обновление (git pull + pull образа)
+#   sudo ./deploy/deploy.sh --rollback # откат на предыдущий коммит git
 # ============================================================
 
 set -euo pipefail
@@ -28,7 +38,7 @@ echo "============================================"
 
 case "${1:-deploy}" in
   deploy)
-    echo "[deploy] Building and starting YouBox..."
+    echo "[deploy] Pulling and starting YouBox..."
 
     # Проверка .env
     if [ ! -f .env ]; then
@@ -50,8 +60,8 @@ case "${1:-deploy}" in
     mkdir -p data/db data/downloads data/tmp
     chmod 0777 data data/db data/downloads data/tmp
 
-    # Билдим и запускаем
-    docker compose -f "$COMPOSE_FILE" build --pull
+    # Скачиваем готовый образ и запускаем (без сборки на сервере)
+    docker compose -f "$COMPOSE_FILE" pull youbox
     docker compose -f "$COMPOSE_FILE" up -d
 
     echo "[deploy] Checking health..."
@@ -80,9 +90,9 @@ http.get('http://localhost:3007/api/health', (res) => {
       git pull
     fi
 
-    # Пересборка и перезапуск
-    docker compose -f "$COMPOSE_FILE" build --pull --no-cache
-    docker compose -f "$COMPOSE_FILE" up -d --force-recreate
+    # Скачиваем свежий образ и перезапускаем (без сборки на сервере)
+    docker compose -f "$COMPOSE_FILE" pull youbox
+    docker compose -f "$COMPOSE_FILE" up -d --force-recreate youbox
 
     echo "[deploy] Cleaning up old images..."
     docker image prune -f
@@ -91,20 +101,14 @@ http.get('http://localhost:3007/api/health', (res) => {
     ;;
 
   --rollback)
-    echo "[deploy] Rolling back..."
-
-    # Пробуем откатить код через git (если доступно)
-    if [ -d .git ]; then
-      echo "[deploy] Restoring previous git state..."
-      git stash 2>/dev/null || true
-      git checkout HEAD~1 2>/dev/null || echo "[deploy] WARNING: git checkout failed, rebuilding current code..."
-    fi
-
-    # Пересборка и перезапуск
-    docker compose -f "$COMPOSE_FILE" build
-    docker compose -f "$COMPOSE_FILE" up -d --force-recreate
-
-    echo "[deploy] Rollback complete. Verify with: docker compose ps && curl -s http://localhost:3007/api/health"
+    echo "[deploy] Образ теперь приходит из ghcr.io/frtsvnth/youbox, локальной пересборки нет."
+    echo "[deploy] Чтобы откатиться, найдите нужный digest в истории пакета:"
+    echo "  https://github.com/frtsvnth/YouBox/pkgs/container/youbox"
+    echo "[deploy] Затем:"
+    echo "  docker pull ghcr.io/frtsvnth/youbox@sha256:<digest>"
+    echo "  docker tag ghcr.io/frtsvnth/youbox@sha256:<digest> ghcr.io/frtsvnth/youbox:latest"
+    echo "  docker compose -f \"$COMPOSE_FILE\" up -d --force-recreate youbox"
+    exit 1
     ;;
 
   *)
